@@ -1,12 +1,10 @@
 {
 	"name": "Default plugin",
 	"author": "Popcorn",
-	"version": "1.2.3",
-	"minVersion": "1.13.16 alpha 1",
-	"supportedVersion": "1.13.16 alpha 1",
+	"version": "1.3",
+	"minVersion": "1.13.16 beta 5",
+	"supportedVersion": "1.13.16",
 	"features": [
-		"eu.darkbot.popcorn.def.PalladiumModule",
-		"eu.darkbot.popcorn.def.SampleModule",
-		"eu.darkbot.popcorn.def.BrokenModule"
+		"eu.darkbot.popcorn.def.PalladiumModule"
 	]
 }

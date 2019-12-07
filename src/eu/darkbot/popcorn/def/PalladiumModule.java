@@ -55,7 +55,7 @@ public class PalladiumModule extends LootNCollectorModule implements Instruction
     @Override
     public void tick() {
         if (statsManager.deposit >= statsManager.depositTotal && statsManager.depositTotal != 0) sell();
-        else if (System.currentTimeMillis() - 500 > sellClick && showTrade(false, null)) super.tick();
+        else if (System.currentTimeMillis() - 500 > sellClick && oreTrade.showTrade(false, null)) super.tick();
     }
 
     private void sell() {
@@ -65,24 +65,12 @@ public class PalladiumModule extends LootNCollectorModule implements Instruction
             if (drive.movingTo().distance(base.locationInfo.now) > 200) { // Move to base
                 double angle = base.locationInfo.now.angle(hero.locationInfo.now) + Math.random() * 0.2 - 0.1;
                 drive.move(Location.of(base.locationInfo.now, angle, 100 + (100 * Math.random())));
-            } else if (!hero.locationInfo.isMoving() && showTrade(true, base)
+            } else if (!hero.locationInfo.isMoving() && oreTrade.showTrade(true, base)
                     && System.currentTimeMillis() - 60_000 > sellClick) {
-                oreTrade.click(611, 179);
+                oreTrade.sellOre(OreTradeGui.Ore.PALLADIUM);
                 sellClick = System.currentTimeMillis();
             }
         });
-    }
-
-    private boolean showTrade(boolean value, BasePoint base) {
-        if (oreTrade.trySetShowing(value)) {
-            if (value) {
-                base.clickable.setRadius(800);
-                drive.clickCenter(true, base.locationInfo.now);
-                base.clickable.setRadius(0);
-            } else oreTrade.click(730, 9);
-            return false;
-        }
-        return oreTrade.isAnimationDone();
     }
 
 }

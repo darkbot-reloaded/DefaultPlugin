@@ -2,7 +2,7 @@
 	"name": "Default plugin",
 	"author": "Popcorn",
 	"version": "1.3",
-	"minVersion": "1.13.16 beta 5",
+	"minVersion": "1.13.16",
 	"supportedVersion": "1.13.16",
 	"features": [
 		"eu.darkbot.popcorn.def.PalladiumModule"

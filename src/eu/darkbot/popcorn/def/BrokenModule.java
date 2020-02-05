@@ -1,9 +1,7 @@
 package eu.darkbot.popcorn.def;
 
 import com.github.manolo8.darkbot.Main;
-import com.github.manolo8.darkbot.config.NpcExtraFlag;
 import com.github.manolo8.darkbot.core.itf.Module;
-import com.github.manolo8.darkbot.core.itf.NpcExtraProvider;
 import com.github.manolo8.darkbot.extensions.features.Feature;
 
 @Feature(name = "Broken module", description = "Module that is broken, just to show an error")

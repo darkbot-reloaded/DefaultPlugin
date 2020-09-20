@@ -13,6 +13,7 @@ import com.github.manolo8.darkbot.core.utils.Drive;
 import com.github.manolo8.darkbot.extensions.features.Feature;
 import com.github.manolo8.darkbot.gui.tree.components.JPercentField;
 import com.github.manolo8.darkbot.gui.utils.Popups;
+import com.github.manolo8.darkbot.utils.AuthAPI;
 
 import javax.swing.*;
 import java.util.Arrays;
@@ -37,7 +38,21 @@ public class SampleModule implements
      */
     @Override
     public void install(Main main) {
-        VerifierChecker.checkAuthenticity(); // Check for verifier authenticity
+        // Ensure that the verifier is from this plugin and properly signed by yourself
+        // If it isn't don't install for this main.
+        if (!Arrays.equals(VerifierChecker.class.getSigners(), getClass().getSigners())) return;
+
+        AuthAPI api = VerifierChecker.getAuthApi();
+
+        // If the user isn't verified, setup auth.
+        // This should be done regardless of if you enforce donors-only on your modules
+        if (!api.isAuthenticated()) api.setupAuth();
+
+        // Alternatively if you want to enforce donors-only on your features, use this instead
+        // You should not do both, as requireDonor will take care of setting up auth
+        //if (!VerifierChecker.getAuthApi().requireDonor()) return;
+
+
         this.drive = main.hero.drive;
     }
 

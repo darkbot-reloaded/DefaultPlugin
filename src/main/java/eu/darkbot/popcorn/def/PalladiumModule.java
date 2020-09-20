@@ -11,6 +11,7 @@ import com.github.manolo8.darkbot.extensions.features.Feature;
 import com.github.manolo8.darkbot.modules.LootNCollectorModule;
 import com.github.manolo8.darkbot.modules.MapModule;
 
+import java.util.Arrays;
 import java.util.List;
 
 @Feature(name = "Palladium Module", description = "Loot & collect, but when full cargo is full travels to 5-2 to sell")
@@ -40,6 +41,7 @@ public class PalladiumModule extends LootNCollectorModule implements Instruction
 
     @Override
     public void install(Main main) {
+        if (!Arrays.equals(VerifierChecker.class.getSigners(), getClass().getSigners())) return;
         VerifierChecker.checkAuthenticity();
         super.install(main);
         this.SELL_MAP = main.starManager.byName("5-2");

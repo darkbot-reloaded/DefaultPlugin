@@ -24,10 +24,9 @@
 
     <dependencies>
         <dependency>
-            <groupId>com.github.Manolo8</groupId>
+            <groupId>com.github.darkbot-reloaded</groupId>
             <artifactId>DarkBot</artifactId>
-            <!--suppress MavenModelInspection | use -U flag in maven to update-->
-            <version>1.13-SNAPSHOT</version>
+            <version>master-SNAPSHOT</version>
         </dependency>
     </dependencies>
 

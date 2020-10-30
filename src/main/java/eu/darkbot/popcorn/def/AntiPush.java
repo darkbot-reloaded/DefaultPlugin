@@ -23,7 +23,7 @@ import java.util.List;
 import java.util.Map;
 
 @Feature(name = "Anti push", description = "Turns off the bot if an enemy uses draw fire or is killed over X times by the same player", enabledByDefault = true)
-public class AntiPush implements Behaviour, Task, Configurable<AntiPush.Config> {
+public class AntiPush implements Behaviour, Configurable<AntiPush.Config> {
 
     private MapManager mapManager;
     private RepairManager repairManager;
@@ -31,8 +31,8 @@ public class AntiPush implements Behaviour, Task, Configurable<AntiPush.Config> 
     private Main main;
     private Config config;
 
-    // key: Killer Name, value: List of times of death, List::size() is death count
-    private final Map<String, List<Instant>> deathStats = new HashMap<>();
+    // key: user id, value: List of times of death, List::size() is death count
+    private final Map<Integer, List<Instant>> deathStats = new HashMap<>();
     private boolean hasCountedDeath = true;
 
     public static class Config {
@@ -66,25 +66,26 @@ public class AntiPush implements Behaviour, Task, Configurable<AntiPush.Config> 
 
     @Override
     public void tick() {
-    }
-
-    @Override
-    public void tickBehaviour() {
         tickDrawFire();
         tickDeathPause();
     }
 
-    // updating deathStats on task thread because behaviour thread not ticked when ship isDead()
+    // updating deathStats on tickStopped() because behaviour not ticked when ship isDead()
     @Override
-    public void tickTask() {
+    public void tickStopped() {
         if (config.DEATH_PAUSE_TIME == 0) return;
 
         updateDeathStats();
         if (repairManager.isDead()) hasCountedDeath = false;
         else {
-            if (!hasCountedDeath && !repairManager.getKillerName().isEmpty())
-                deathStats.computeIfAbsent(repairManager.getKillerName(), l -> new ArrayList<>())
+            Ship killer = ships.stream()
+                    .filter(s -> s.playerInfo.username.equals(repairManager.getKillerName()))
+                    .findFirst()
+                    .orElse(null);
+            if (!hasCountedDeath && killer != null) {
+                deathStats.computeIfAbsent(killer.id, l -> new ArrayList<>())
                         .add(Instant.now());
+            }
             hasCountedDeath = true;
         }
     }
@@ -102,20 +103,19 @@ public class AntiPush implements Behaviour, Task, Configurable<AntiPush.Config> 
     }
 
     private void tickDeathPause() {
-        Map.Entry<String, List<Instant>> deathEntry = deathStats.entrySet().stream()
-                .filter(e -> e.getValue()
-                .size() >= config.MAX_DEATHS)
+        Map.Entry<Integer, List<Instant>> deathEntry = deathStats.entrySet().stream()
+                .filter(e -> e.getValue().size() >= config.MAX_DEATHS)
                 .findFirst()
                 .orElse(null);
 
         if (deathEntry != null) {
             System.out.format("Pausing for %d minutes (Death pause feature): killed by %s %d times\n",
                     config.DEATH_PAUSE_TIME,
-                    deathEntry.getKey(),
+                    repairManager.getKillerName(),
                     deathEntry.getValue().size());
             main.setModule(new DisconnectModule(config.DEATH_PAUSE_TIME * 60 * 1000L,
                     I18n.get("module.disconnect.reason.death_pause",
-                            deathEntry.getKey(),
+                            repairManager.getKillerName(),
                             deathEntry.getValue().size())));
             deathStats.remove(deathEntry.getKey());
         }

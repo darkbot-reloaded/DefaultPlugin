@@ -6,7 +6,6 @@ import com.github.manolo8.darkbot.config.types.Option;
 import com.github.manolo8.darkbot.core.entities.Ship;
 import com.github.manolo8.darkbot.core.itf.Behaviour;
 import com.github.manolo8.darkbot.core.itf.Configurable;
-import com.github.manolo8.darkbot.core.itf.Task;
 import com.github.manolo8.darkbot.core.manager.EffectManager;
 import com.github.manolo8.darkbot.core.manager.MapManager;
 import com.github.manolo8.darkbot.core.manager.RepairManager;
@@ -36,16 +35,16 @@ public class AntiPush implements Behaviour, Configurable<AntiPush.Config> {
     private boolean hasCountedDeath = true;
 
     public static class Config {
-        @Option(value = "Pause time on draw fire (minutes)", description = "Pause time, 0 for infinite pause")
-        @Num(min = 0, max = 300)
+        @Option(value = "Pause time on draw fire (minutes)", description = "Pause time, 0 to disable feature, -1 for infinite pause")
+        @Num(min = -1, max = 300)
         public int DRAWFIRE_PAUSE_TIME = 0;
 
         @Option(value = "Max kills by same player", description = "The maximum times one player can kill you before bot pauses.")
         @Num(min = 1, max = 1000, step = 1)
         public int MAX_DEATHS = 7;
 
-        @Option(value = "Pause time after kills reached (minutes)", description = "Time to pause after kills reached, set it to 0 to disable feature")
-        @Num(min = 0, max = 300)
+        @Option(value = "Pause time after kills reached (minutes)", description = "Time to pause after kills reached, 0 to disable feature, -1 for infinite pause")
+        @Num(min = -1, max = 300)
         public int DEATH_PAUSE_TIME = 0;
     }
 
@@ -91,6 +90,8 @@ public class AntiPush implements Behaviour, Configurable<AntiPush.Config> {
     }
 
     private void tickDrawFire() {
+        if (config.DRAWFIRE_PAUSE_TIME == 0) return;
+
         for (Ship ship : ships) {
             if (!ship.playerInfo.isEnemy() || !ship.hasEffect(EffectManager.Effect.DRAW_FIRE) || !mapManager.isTarget(ship)) continue;
             System.out.println("Pausing bot" +
@@ -103,6 +104,8 @@ public class AntiPush implements Behaviour, Configurable<AntiPush.Config> {
     }
 
     private void tickDeathPause() {
+        if (config.DEATH_PAUSE_TIME == 0) return;
+
         Map.Entry<Integer, List<Instant>> deathEntry = deathStats.entrySet().stream()
                 .filter(e -> e.getValue().size() >= config.MAX_DEATHS)
                 .findFirst()
@@ -113,7 +116,7 @@ public class AntiPush implements Behaviour, Configurable<AntiPush.Config> {
                     config.DEATH_PAUSE_TIME,
                     repairManager.getKillerName(),
                     deathEntry.getValue().size());
-            main.setModule(new DisconnectModule(config.DEATH_PAUSE_TIME * 60 * 1000L,
+            main.setModule(new DisconnectModule(config.DEATH_PAUSE_TIME > 0 ? config.DEATH_PAUSE_TIME * 60 * 1000L : null,
                     I18n.get("module.disconnect.reason.death_pause",
                             repairManager.getKillerName(),
                             deathEntry.getValue().size())));

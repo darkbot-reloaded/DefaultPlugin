@@ -103,22 +103,20 @@ public class AntiPush implements Behaviour, Configurable<AntiPush.Config> {
         if (config.DEATH_PAUSE_TIME == 0) return;
         wasDead = false;
 
-        Map.Entry<Integer, List<Instant>> deathEntry = deathStats.entrySet().stream()
+        deathStats.entrySet().stream()
                 .filter(e -> e.getValue().size() >= config.MAX_DEATHS)
                 .findFirst()
-                .orElse(null);
-
-        if (deathEntry != null) {
-            System.out.format("Pausing for %d minutes (Death pause feature): killed by %s %d times\n",
-                    config.DEATH_PAUSE_TIME,
-                    repairManager.getKillerName(),
-                    deathEntry.getValue().size());
-            main.setModule(new DisconnectModule(config.DEATH_PAUSE_TIME > 0 ? config.DEATH_PAUSE_TIME * 60 * 1000L : null,
-                    I18n.get("module.disconnect.reason.death_pause",
+                .ifPresent(entry -> {
+                    System.out.format("Pausing for %d minutes (Death pause feature): killed by %s %d times\n",
+                            config.DEATH_PAUSE_TIME,
                             repairManager.getKillerName(),
-                            deathEntry.getValue().size())));
-            deathStats.remove(deathEntry.getKey());
-        }
+                            entry.getValue().size());
+                    main.setModule(new DisconnectModule(config.DEATH_PAUSE_TIME > 0 ? config.DEATH_PAUSE_TIME * 60 * 1000L : null,
+                            I18n.get("module.disconnect.reason.death_pause",
+                                    repairManager.getKillerName(),
+                                    entry.getValue().size())));
+                    deathStats.remove(entry.getKey());
+                });
     }
 
     private void removeOldDeaths() {

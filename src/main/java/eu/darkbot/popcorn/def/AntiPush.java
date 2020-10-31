@@ -32,12 +32,12 @@ public class AntiPush implements Behaviour, Configurable<AntiPush.Config> {
 
     // key: user id, value: List of times of death, List::size() is death count
     private final Map<Integer, List<Instant>> deathStats = new HashMap<>();
-    private boolean hasCountedDeath = true;
+    private boolean wasDead = true;
 
     public static class Config {
         @Option(value = "Pause time on draw fire (minutes)", description = "Pause time, 0 to disable feature, -1 for infinite pause")
         @Num(min = -1, max = 300)
-        public int DRAWFIRE_PAUSE_TIME = 0;
+        public int DRAWFIRE_PAUSE_TIME = -1;
 
         @Option(value = "Max kills by same player", description = "The maximum times one player can kill you before bot pauses.")
         @Num(min = 1, max = 1000, step = 1)
@@ -45,7 +45,7 @@ public class AntiPush implements Behaviour, Configurable<AntiPush.Config> {
 
         @Option(value = "Pause time after kills reached (minutes)", description = "Time to pause after kills reached, 0 to disable feature, -1 for infinite pause")
         @Num(min = -1, max = 300)
-        public int DEATH_PAUSE_TIME = 0;
+        public int DEATH_PAUSE_TIME = -1;
     }
 
     @Override
@@ -74,18 +74,14 @@ public class AntiPush implements Behaviour, Configurable<AntiPush.Config> {
     public void tickStopped() {
         if (config.DEATH_PAUSE_TIME == 0) return;
 
-        updateDeathStats();
-        if (repairManager.isDead()) hasCountedDeath = false;
-        else {
-            Ship killer = ships.stream()
+        removeOldDeaths();
+        if (repairManager.isDead() && !wasDead) {
+            ships.stream()
                     .filter(s -> s.playerInfo.username.equals(repairManager.getKillerName()))
                     .findFirst()
-                    .orElse(null);
-            if (!hasCountedDeath && killer != null) {
-                deathStats.computeIfAbsent(killer.id, l -> new ArrayList<>())
-                        .add(Instant.now());
-            }
-            hasCountedDeath = true;
+                    .ifPresent(killer -> deathStats.computeIfAbsent(
+                            killer.id, l -> new ArrayList<>()).add(Instant.now()));
+            wasDead = true;
         }
     }
 
@@ -105,6 +101,7 @@ public class AntiPush implements Behaviour, Configurable<AntiPush.Config> {
 
     private void tickDeathPause() {
         if (config.DEATH_PAUSE_TIME == 0) return;
+        wasDead = false;
 
         Map.Entry<Integer, List<Instant>> deathEntry = deathStats.entrySet().stream()
                 .filter(e -> e.getValue().size() >= config.MAX_DEATHS)
@@ -124,7 +121,7 @@ public class AntiPush implements Behaviour, Configurable<AntiPush.Config> {
         }
     }
 
-    private void updateDeathStats() {
+    private void removeOldDeaths() {
         deathStats.values().
                 forEach(time -> time.removeIf(t -> Duration.between(t, Instant.now()).toDays() >= 1));
         deathStats.values().removeIf(List::isEmpty);

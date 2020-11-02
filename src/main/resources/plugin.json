@@ -1,14 +1,14 @@
 {
 	"name": "Default plugin",
 	"author": "Popcorn",
-	"version": "1.3.2",
+	"version": "1.4.0",
 	"minVersion": "1.13.17 beta 36",
-	"supportedVersion": "1.13.17 beta 36",
+	"supportedVersion": "1.13.17 beta 52",
 	"features": [
 		"eu.darkbot.popcorn.def.PalladiumModule",
 		"eu.darkbot.popcorn.def.AntiPush",
 		"eu.darkbot.popcorn.def.SampleModule"
 	],
-	"download": "https://github.com/darkbot-reloaded/DefaultPlugin/releases/download/v1.3.2/DefaultPlugin.jar",
+	"download": "https://github.com/darkbot-reloaded/DefaultPlugin/releases/download/v1.4.0/DefaultPlugin.jar",
 	"update": "https://raw.githubusercontent.com/darkbot-reloaded/DefaultPlugin/master/src/main/resources/plugin.json"
 }

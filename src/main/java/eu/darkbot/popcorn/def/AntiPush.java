@@ -120,8 +120,8 @@ public class AntiPush implements Behaviour, Configurable<AntiPush.Config> {
     }
 
     private void removeOldDeaths() {
-        deathStats.values().
-                forEach(time -> time.removeIf(t -> Duration.between(t, Instant.now()).toDays() >= 1));
+        deathStats.values()
+                .forEach(time -> time.removeIf(t -> Duration.between(t, Instant.now()).toDays() >= 1));
         deathStats.values().removeIf(List::isEmpty);
     }
 }

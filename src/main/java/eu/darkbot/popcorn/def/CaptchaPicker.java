@@ -72,10 +72,12 @@ public class CaptchaPicker extends TemporalModule {
                 .filter(box -> box.type.equals(boxMatch.name))
                 .min(Comparator.comparingDouble(box -> hero.locationInfo.now.distance(box)))
                 .ifPresent(box -> {
-                    if (!boxMatch.hasAmount)
+                    if (!boxMatch.hasAmount) {
                         boxMatch.amount = (int) boxes.stream()
-                            .filter(b -> b.type.equals(boxMatch.name))
-                            .count();
+                                .filter(b -> b.type.equals(boxMatch.name))
+                                .count();
+                        boxMatch.hasAmount = true;
+                    }
                     collectBox(box);
                 });
         if (boxMatch.amount == 0) goBack();

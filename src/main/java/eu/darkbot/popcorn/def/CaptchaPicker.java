@@ -26,6 +26,7 @@ public class CaptchaPicker extends TemporalModule {
 
     private Captcha boxMatch;
     private List<Box> boxes;
+    private int currentlyCollected, amountToCollect;
 
     @Override
     public void install(Main main) {
@@ -72,15 +73,17 @@ public class CaptchaPicker extends TemporalModule {
                 .filter(box -> box.type.equals(boxMatch.name))
                 .min(Comparator.comparingDouble(box -> hero.locationInfo.now.distance(box)))
                 .ifPresent(box -> {
-                    if (!boxMatch.hasAmount) {
-                        boxMatch.amount = (int) boxes.stream()
+                    if (!boxMatch.hasAmount && amountToCollect == 0) {
+                        amountToCollect = (int) boxes.stream()
                                 .filter(b -> b.type.equals(boxMatch.name))
                                 .count();
-                        boxMatch.hasAmount = true;
                     }
                     collectBox(box);
                 });
-        if (boxMatch.amount == 0) goBack();
+        if (currentlyCollected != 0 && currentlyCollected == amountToCollect) {
+            reset();
+            goBack();
+        }
     }
 
     private void collectBox(Box box) {
@@ -92,10 +95,14 @@ public class CaptchaPicker extends TemporalModule {
             drive.clickCenter(true, box.locationInfo.now);
 
             box.setCollected();
-            if (box.getRetries() > 0 && box.removed) boxMatch.amount--;
+            if (box.getRetries() > 0 && box.removed) currentlyCollected++;
         } else {
             drive.move(box);
         }
+    }
+
+    private void reset() {
+        currentlyCollected = amountToCollect = 0;
     }
 
     private enum Captcha {
@@ -124,14 +131,14 @@ public class CaptchaPicker extends TemporalModule {
 
                 pattern = Pattern.compile(translation
                         .replaceAll("%AMOUNT%", "([0-9]+)")
-                        .replaceAll("%TIME%", "(.*)"));
+                        .replaceAll("%TIME%", "([0-9]+)"));
             }
 
             Matcher m = pattern.matcher(log);
             boolean matched = m.matches();
             if (hasAmount && matched) {
                 amount = Integer.parseInt(m.group(1));
-                time = Integer.parseInt(m.group(2).replaceAll("^[0-9]", ""));
+                time = Integer.parseInt(m.group(2));
             }
             return matched;
         }

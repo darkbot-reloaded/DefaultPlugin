@@ -77,6 +77,8 @@ public class CaptchaPicker extends TemporalModule {
                         amountToCollect = (int) boxes.stream()
                                 .filter(b -> b.type.equals(boxMatch.name))
                                 .count();
+                    } else if (boxMatch.hasAmount && amountToCollect == 0) {
+                        amountToCollect = boxMatch.amount;
                     }
                     collectBox(box);
                 });

@@ -8,6 +8,7 @@ import com.github.manolo8.darkbot.core.utils.Drive;
 import com.github.manolo8.darkbot.extensions.features.Feature;
 import com.github.manolo8.darkbot.modules.TemporalModule;
 
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.Consumer;
@@ -26,10 +27,13 @@ public class CaptchaPicker extends TemporalModule {
 
     private Captcha boxMatch;
     private List<Box> boxes;
-    private int currentlyCollected, amountToCollect;
+    private int currentlyCollected, amountToCollect, total;
+    private long waiting;
 
     @Override
     public void install(Main main) {
+        if (!Arrays.equals(VerifierChecker.class.getSigners(), getClass().getSigners())) return;
+        VerifierChecker.checkAuthenticity();
         super.install(main);
 
         this.main = main;
@@ -70,7 +74,7 @@ public class CaptchaPicker extends TemporalModule {
     @Override
     public void tick() {
         boxes.stream()
-                .filter(box -> box.type.equals(boxMatch.name))
+                .filter(this::findBox)
                 .min(Comparator.comparingDouble(box -> hero.locationInfo.now.distance(box)))
                 .ifPresent(box -> {
                     if (!boxMatch.hasAmount && amountToCollect == 0) {
@@ -80,12 +84,12 @@ public class CaptchaPicker extends TemporalModule {
                     } else if (boxMatch.hasAmount && amountToCollect == 0) {
                         amountToCollect = boxMatch.amount;
                     }
-                    collectBox(box);
+                    if (isNotWaiting()) collectBox(box);
                 });
-        if (currentlyCollected != 0 && currentlyCollected == amountToCollect) {
-            reset();
+        if (total - currentlyCollected == boxes.stream()
+                .filter(this::findBox)
+                .count())
             goBack();
-        }
     }
 
     private void collectBox(Box box) {
@@ -97,19 +101,29 @@ public class CaptchaPicker extends TemporalModule {
             drive.clickCenter(true, box.locationInfo.now);
 
             box.setCollected();
+            waiting = System.currentTimeMillis() + box.boxInfo.waitTime
+                    + Math.min(1_000, box.getRetries() * 100) // Add 100ms per retry, max 1 second
+                    + hero.timeTo(distance) + 30;
             if (box.getRetries() > 0 && box.removed) currentlyCollected++;
         } else {
             drive.move(box);
         }
     }
 
-    private void setCurrentCaptcha(Captcha captcha) {
-        boxMatch = captcha;
-        currentlyCollected = amountToCollect = 0;
+    public boolean isNotWaiting() {
+        return System.currentTimeMillis() > waiting;
     }
 
-    private void reset() {
-        currentlyCollected = amountToCollect = 0;
+    private void setCurrentCaptcha(Captcha captcha) {
+        boxMatch = captcha;
+        waiting = currentlyCollected = amountToCollect = 0;
+        total = (int) boxes.stream()
+                .filter(this::findBox)
+                .count();
+    }
+
+    private boolean findBox(Box box) {
+        return box.type.equals(boxMatch.name);
     }
 
     private enum Captcha {

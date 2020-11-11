@@ -50,7 +50,7 @@ public class CaptchaPicker extends TemporalModule {
     private void onLogReceived(String log) {
         for (Captcha captcha : Captcha.values()) {
             if (captcha.matches(log, flashResManager)) {
-                this.boxMatch = captcha;
+                setCurrentCaptcha(captcha);
 
                 if (main.module != this) main.setModule(this);
             }
@@ -101,6 +101,11 @@ public class CaptchaPicker extends TemporalModule {
         } else {
             drive.move(box);
         }
+    }
+
+    private void setCurrentCaptcha(Captcha captcha) {
+        boxMatch = captcha;
+        currentlyCollected = amountToCollect = 0;
     }
 
     private void reset() {

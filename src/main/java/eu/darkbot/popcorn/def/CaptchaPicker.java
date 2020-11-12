@@ -89,7 +89,6 @@ public class CaptchaPicker extends TemporalModule implements Behaviour {
         if (flashResManager.getTranslation(Captcha.SOME_RED.key) == null) return;
 
         pastLogMessages.forEach(this::onLogReceived);
-        pastLogMessages.clear();
     }
 
     @Override

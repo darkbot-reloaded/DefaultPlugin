@@ -51,6 +51,8 @@ public class CaptchaPicker extends TemporalModule implements Behaviour {
                 .orElseThrow(IllegalStateException::new);
         this.boxes = main.mapManager.entities.boxes;
 
+        this.toCollect = null;
+
         main.facadeManager.log.logs.add(logConsumer);
     }
 
@@ -60,14 +62,14 @@ public class CaptchaPicker extends TemporalModule implements Behaviour {
     }
 
     private void onLogReceived(String log) {
+        // Previous to flash resource manager initialization, translations may be null, if so, store messages.
         if (flashResManager.getTranslation(Captcha.SOME_RED.key) == null) {
             pastLogMessages.add(log);
             return;
         }
 
         for (Captcha captcha : Captcha.values()) {
-            if (captcha.matches(log, flashResManager))
-                setCurrentCaptcha(captcha);
+            if (captcha.matches(log, flashResManager)) setCurrentCaptcha(captcha);
         }
     }
 
@@ -78,17 +80,20 @@ public class CaptchaPicker extends TemporalModule implements Behaviour {
 
     @Override
     public String status() {
-        return "Solving captcha: Collecting " +
-                (captchaType.hasAmount ? captchaType.amount : "all") + " " +
-                captchaType.box + " box(es)";
+        return "Solving captcha: Collecting " + (captchaType == null ? "(waiting for log...)" :
+                (captchaType.hasAmount ? captchaType.amount : "all") + " " + captchaType.box + " box(es)");
     }
 
     @Override
     public void tickBehaviour() {
-        if (pastLogMessages.isEmpty()) return;
-        if (flashResManager.getTranslation(Captcha.SOME_RED.key) == null) return;
+        // Translations finally loaded, process past message
+        if (!pastLogMessages.isEmpty() && flashResManager.getTranslation(Captcha.SOME_RED.key) != null) {
+            pastLogMessages.forEach(this::onLogReceived);
+            pastLogMessages.clear();
+        }
 
-        pastLogMessages.forEach(this::onLogReceived);
+        // Set module to work if there's any
+        if (main.module != this && hasAnyCaptchaBox()) main.setModule(this);
     }
 
     @Override
@@ -104,9 +109,15 @@ public class CaptchaPicker extends TemporalModule implements Behaviour {
             toCollect = boxStream.collect(Collectors.toList());
         }
 
-        toCollect.stream().filter(b -> !b.isCollected()).findFirst().ifPresent(this::collectBox);
+        toCollect.stream().filter(b -> !b.isCollected())
+                .findFirst().ifPresent(this::collectBox);
 
-        if (boxes.stream().map(b -> b.type).noneMatch(ALL_CAPTCHA_TYPES::contains)) goBack();
+        if (!hasAnyCaptchaBox()) goBack();
+    }
+
+    private boolean hasAnyCaptchaBox() {
+        return boxes.stream().map(b -> b.type)
+                .anyMatch(ALL_CAPTCHA_TYPES::contains);
     }
 
     private void collectBox(Box box) {
@@ -125,12 +136,8 @@ public class CaptchaPicker extends TemporalModule implements Behaviour {
 
     private void setCurrentCaptcha(Captcha captcha) {
         waiting = System.currentTimeMillis() + 500; // Wait for everything to be ready
-
-        pastLogMessages.clear();
         captchaType = captcha;
         toCollect = null;
-
-        if (main.module != this) main.setModule(this);
     }
 
     @Override

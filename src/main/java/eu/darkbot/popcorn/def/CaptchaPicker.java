@@ -27,7 +27,7 @@ public class CaptchaPicker extends TemporalModule {
 
     private Captcha boxMatch;
     private List<Box> boxes;
-    private int currentlyCollected, amountToCollect, total;
+    private int currentlyCollected;
     private long waiting;
 
     @Override
@@ -68,7 +68,9 @@ public class CaptchaPicker extends TemporalModule {
 
     @Override
     public String status() {
-        return "Solving captcha" + (boxMatch != null ? " " + boxMatch : "");
+        return "Solving captcha: Collecting " +
+                (boxMatch.hasAmount ? boxMatch.amount : "all") + " " +
+                boxMatch.name + " box(es)";
     }
 
     @Override
@@ -77,37 +79,26 @@ public class CaptchaPicker extends TemporalModule {
                 .filter(this::findBox)
                 .min(Comparator.comparingDouble(box -> hero.locationInfo.now.distance(box)))
                 .ifPresent(box -> {
-                    if (!boxMatch.hasAmount && amountToCollect == 0) {
-                        amountToCollect = (int) boxes.stream()
-                                .filter(b -> b.type.equals(boxMatch.name))
-                                .count();
-                    } else if (boxMatch.hasAmount && amountToCollect == 0) {
-                        amountToCollect = boxMatch.amount;
-                    }
                     if (isNotWaiting()) collectBox(box);
                 });
-        if (total - currentlyCollected == boxes.stream()
-                .filter(this::findBox)
-                .count())
+        if (boxes.stream()
+                .noneMatch(box -> Arrays.stream(Captcha.values())
+                    .anyMatch(b -> box.type.equals(b.name))))
             goBack();
     }
 
     private void collectBox(Box box) {
         double distance = hero.locationInfo.distance(box);
 
-        if (distance < 200) {
             drive.stop(false);
             box.clickable.setRadius(800);
             drive.clickCenter(true, box.locationInfo.now);
 
             box.setCollected();
-            waiting = System.currentTimeMillis() + box.boxInfo.waitTime
+            waiting = System.currentTimeMillis()
                     + Math.min(1_000, box.getRetries() * 100) // Add 100ms per retry, max 1 second
-                    + hero.timeTo(distance) + 30;
+                    + hero.timeTo(distance) + 2000;
             if (box.getRetries() > 0 && box.removed) currentlyCollected++;
-        } else {
-            drive.move(box);
-        }
     }
 
     public boolean isNotWaiting() {
@@ -116,10 +107,7 @@ public class CaptchaPicker extends TemporalModule {
 
     private void setCurrentCaptcha(Captcha captcha) {
         boxMatch = captcha;
-        waiting = currentlyCollected = amountToCollect = 0;
-        total = (int) boxes.stream()
-                .filter(this::findBox)
-                .count();
+        waiting = currentlyCollected = 0;
     }
 
     private boolean findBox(Box box) {

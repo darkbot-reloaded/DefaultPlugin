@@ -3,11 +3,13 @@ package eu.darkbot.popcorn.def;
 import com.github.manolo8.darkbot.Main;
 import com.github.manolo8.darkbot.backpage.FlashResManager;
 import com.github.manolo8.darkbot.core.entities.Box;
+import com.github.manolo8.darkbot.core.itf.Behaviour;
 import com.github.manolo8.darkbot.core.manager.HeroManager;
 import com.github.manolo8.darkbot.core.utils.Drive;
 import com.github.manolo8.darkbot.extensions.features.Feature;
 import com.github.manolo8.darkbot.modules.TemporalModule;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -16,7 +18,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @Feature(name = "Captcha picker", description = "Picks up captcha boxes when they appear", enabledByDefault = true)
-public class CaptchaPicker extends TemporalModule {
+public class CaptchaPicker extends TemporalModule implements Behaviour {
 
     private Main main;
     private HeroManager hero;
@@ -24,6 +26,7 @@ public class CaptchaPicker extends TemporalModule {
 
     private FlashResManager flashResManager;
     private final Consumer<String> logConsumer = this::onLogReceived;
+    private final List<String> logMessages = new ArrayList<>();
 
     private Captcha boxMatch;
     private List<Box> boxes;
@@ -53,6 +56,10 @@ public class CaptchaPicker extends TemporalModule {
 
     private void onLogReceived(String log) {
         for (Captcha captcha : Captcha.values()) {
+            if (flashResManager.getTranslation(captcha.key) == null) {
+                logMessages.add(log);
+                break;
+            }
             if (captcha.matches(log, flashResManager)) {
                 setCurrentCaptcha(captcha);
 
@@ -71,6 +78,21 @@ public class CaptchaPicker extends TemporalModule {
         return "Solving captcha: Collecting " +
                 (boxMatch.hasAmount ? boxMatch.amount : "all") + " " +
                 boxMatch.name + " box(es)";
+    }
+
+    @Override
+    public void tickBehaviour() {
+        if (!logMessages.isEmpty() &&
+            flashResManager.getTranslation(Captcha.SOME_RED.key) != null) {
+
+            logMessages.forEach(msg -> Arrays.stream(Captcha.values()).forEach(c -> {
+                if (c.matches(msg, flashResManager)) {
+                    setCurrentCaptcha(c);
+
+                    if (main.module != this) main.setModule(this);
+                }
+            }));
+        }
     }
 
     @Override
@@ -106,6 +128,7 @@ public class CaptchaPicker extends TemporalModule {
     }
 
     private void setCurrentCaptcha(Captcha captcha) {
+        logMessages.clear();
         boxMatch = captcha;
         waiting = currentlyCollected = 0;
     }
@@ -118,9 +141,9 @@ public class CaptchaPicker extends TemporalModule {
         SOME_BLACK("POISON_PUSAT_BOX_BLACK", "captcha_choose_some_black"),
         ALL_BLACK("POISON_PUSAT_BOX_BLACK", "captcha_choose_all_black"),
         SOME_RED("BONUS_BOX_RED", "captcha_choose_some_red"),
-        ALL_RED("BONUS_BOX_RED", "captcha_choose_all_black");
+        ALL_RED("BONUS_BOX_RED", "captcha_choose_all_red");
 
-        public final String name, key;
+        private final String name, key;
         private Pattern pattern;
         private boolean hasAmount;
         private int amount, time;

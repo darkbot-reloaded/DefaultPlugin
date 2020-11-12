@@ -3,77 +3,45 @@ package eu.darkbot.popcorn.def;
 import com.github.manolo8.darkbot.Main;
 import com.github.manolo8.darkbot.backpage.FlashResManager;
 import com.github.manolo8.darkbot.core.entities.Box;
+import com.github.manolo8.darkbot.core.itf.Behaviour;
+import com.github.manolo8.darkbot.core.manager.HeroManager;
+import com.github.manolo8.darkbot.core.utils.Drive;
 import com.github.manolo8.darkbot.extensions.features.Feature;
 import com.github.manolo8.darkbot.modules.TemporalModule;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @Feature(name = "Captcha picker", description = "Picks up captcha boxes when they appear", enabledByDefault = true)
-public class CaptchaPicker extends TemporalModule {
+public class CaptchaPicker extends TemporalModule implements Behaviour {
 
     private Main main;
-
-    private enum Captcha {
-        SOME_BLACK("captcha_chose_some_black"),
-        ALL_BLACK("captcha_chose_all_black"),
-        SOME_RED("captcha_chose_some_red"),
-        ALL_RED("captcha_chose_all_black");
-
-        public final String key;
-        private Pattern pattern;
-        private boolean hasAmount;
-        private int amount;
-
-        Captcha(String key) {
-            this.key = key;
-        }
-
-        public boolean matches(String log, FlashResManager resManager) {
-            if (pattern == null) {
-                if (resManager == null) return false;
-                String translation = resManager.getTranslation(key);
-                if (translation == null || translation.isEmpty()) return false;
-
-                this.hasAmount = translation.contains("%AMOUNT%");
-
-                pattern = Pattern.compile(translation.replaceAll("%AMOUNT%", "([0-9]+)").replaceAll("%TIME%", ".*"));
-            }
-
-            Matcher m = pattern.matcher(log);
-            boolean matched = m.matches();
-            if (hasAmount && matched) amount = Integer.parseInt(m.group(1));
-            return matched;
-        }
-
-        public int getAmount() {
-            return hasAmount ? -1 : amount;
-        }
-
-        @Override
-        public String toString() {
-            return name() + (hasAmount ?  " " + amount : "");
-        }
-    }
+    private HeroManager hero;
+    private Drive drive;
 
     private FlashResManager flashResManager;
     private final Consumer<String> logConsumer = this::onLogReceived;
+    private final List<String> logMessages = new ArrayList<>();
 
-    private Captcha currentMatch;
-
+    private Captcha boxMatch;
     private List<Box> boxes;
-
-    public CaptchaPicker() {}
+    private int currentlyCollected;
+    private long waiting;
 
     @Override
     public void install(Main main) {
         if (!Arrays.equals(VerifierChecker.class.getSigners(), getClass().getSigners())) return;
         VerifierChecker.checkAuthenticity();
+        super.install(main);
 
         this.main = main;
+        this.hero = main.hero;
+        this.drive = main.hero.drive;
         this.flashResManager = main.featureRegistry.getFeature(FlashResManager.class)
                 .orElseThrow(IllegalStateException::new);
         this.boxes = main.mapManager.entities.boxes;
@@ -88,13 +56,16 @@ public class CaptchaPicker extends TemporalModule {
 
     private void onLogReceived(String log) {
         for (Captcha captcha : Captcha.values()) {
+            if (flashResManager.getTranslation(captcha.key) == null) {
+                logMessages.add(log);
+                break;
+            }
             if (captcha.matches(log, flashResManager)) {
-                this.currentMatch = captcha;
+                setCurrentCaptcha(captcha);
 
                 if (main.module != this) main.setModule(this);
             }
         }
-        this.currentMatch = null;
     }
 
     @Override
@@ -104,13 +75,109 @@ public class CaptchaPicker extends TemporalModule {
 
     @Override
     public String status() {
-        return "Solving captcha" + (currentMatch != null ? " " + currentMatch : "");
+        return "Solving captcha: Collecting " +
+                (boxMatch.hasAmount ? boxMatch.amount : "all") + " " +
+                boxMatch.name + " box(es)";
+    }
+
+    @Override
+    public void tickBehaviour() {
+        if (!logMessages.isEmpty() &&
+            flashResManager.getTranslation(Captcha.SOME_RED.key) != null) {
+
+            logMessages.forEach(msg -> Arrays.stream(Captcha.values()).forEach(c -> {
+                if (c.matches(msg, flashResManager)) {
+                    setCurrentCaptcha(c);
+
+                    if (main.module != this) main.setModule(this);
+                }
+            }));
+        }
     }
 
     @Override
     public void tick() {
-
-
+        boxes.stream()
+                .filter(this::findBox)
+                .min(Comparator.comparingDouble(box -> hero.locationInfo.now.distance(box)))
+                .ifPresent(box -> {
+                    if (isNotWaiting()) collectBox(box);
+                });
+        if (boxes.stream()
+                .noneMatch(box -> Arrays.stream(Captcha.values())
+                    .anyMatch(b -> box.type.equals(b.name))))
+            goBack();
     }
 
+    private void collectBox(Box box) {
+        double distance = hero.locationInfo.distance(box);
+
+            drive.stop(false);
+            box.clickable.setRadius(800);
+            drive.clickCenter(true, box.locationInfo.now);
+
+            box.setCollected();
+            waiting = System.currentTimeMillis()
+                    + Math.min(1_000, box.getRetries() * 100) // Add 100ms per retry, max 1 second
+                    + hero.timeTo(distance) + 2000;
+            if (box.getRetries() > 0 && box.removed) currentlyCollected++;
+    }
+
+    public boolean isNotWaiting() {
+        return System.currentTimeMillis() > waiting;
+    }
+
+    private void setCurrentCaptcha(Captcha captcha) {
+        logMessages.clear();
+        boxMatch = captcha;
+        waiting = currentlyCollected = 0;
+    }
+
+    private boolean findBox(Box box) {
+        return box.type.equals(boxMatch.name);
+    }
+
+    private enum Captcha {
+        SOME_BLACK("POISON_PUSAT_BOX_BLACK", "captcha_choose_some_black"),
+        ALL_BLACK("POISON_PUSAT_BOX_BLACK", "captcha_choose_all_black"),
+        SOME_RED("BONUS_BOX_RED", "captcha_choose_some_red"),
+        ALL_RED("BONUS_BOX_RED", "captcha_choose_all_red");
+
+        private final String name, key;
+        private Pattern pattern;
+        private boolean hasAmount;
+        private int amount, time;
+
+        Captcha(String name, String key) {
+            this.name = name;
+            this.key = key;
+        }
+
+        public boolean matches(String log, FlashResManager resManager) {
+            if (pattern == null) {
+                if (resManager == null) return false;
+                String translation = resManager.getTranslation(key);
+                if (translation == null || translation.isEmpty()) return false;
+
+                this.hasAmount = translation.contains("%AMOUNT%");
+
+                pattern = Pattern.compile(translation
+                        .replaceAll("%AMOUNT%", "([0-9]+)")
+                        .replaceAll("%TIME%", "([0-9]+)"));
+            }
+
+            Matcher m = pattern.matcher(log);
+            boolean matched = m.matches();
+            if (hasAmount && matched) {
+                amount = Integer.parseInt(m.group(1));
+                time = Integer.parseInt(m.group(2));
+            }
+            return matched;
+        }
+
+        @Override
+        public String toString() {
+            return name() + (hasAmount ?  " " + amount : "");
+        }
+    }
 }

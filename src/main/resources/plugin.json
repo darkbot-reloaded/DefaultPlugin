@@ -5,6 +5,7 @@
 	"minVersion": "1.13.17 beta 36",
 	"supportedVersion": "1.13.17 beta 52",
 	"features": [
+		"eu.darkbot.popcorn.def.CaptchaPicker",
 		"eu.darkbot.popcorn.def.PalladiumModule",
 		"eu.darkbot.popcorn.def.AntiPush",
 		"eu.darkbot.popcorn.def.SampleModule"

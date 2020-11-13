@@ -4,6 +4,7 @@ import com.github.manolo8.darkbot.Main;
 import com.github.manolo8.darkbot.backpage.FlashResManager;
 import com.github.manolo8.darkbot.core.entities.Box;
 import com.github.manolo8.darkbot.core.itf.Behaviour;
+import com.github.manolo8.darkbot.core.itf.Module;
 import com.github.manolo8.darkbot.core.manager.HeroManager;
 import com.github.manolo8.darkbot.core.utils.Drive;
 import com.github.manolo8.darkbot.extensions.features.Feature;
@@ -27,6 +28,8 @@ public class CaptchaPicker extends TemporalModule implements Behaviour {
 
     private static final Set<String> ALL_CAPTCHA_TYPES =
             Arrays.stream(Captcha.values()).map(c -> c.box).collect(Collectors.toSet());
+
+    private Module mainModule;
 
     private Main main;
     private HeroManager hero;
@@ -88,6 +91,8 @@ public class CaptchaPicker extends TemporalModule implements Behaviour {
 
     @Override
     public void tickBehaviour() {
+        if (!(main.module instanceof TemporalModule) && main.module != mainModule)
+            mainModule = main.module;
         // Translations finally loaded, process past message
         if (!pastLogMessages.isEmpty() && flashResManager.getTranslation(Captcha.SOME_RED.key) != null) {
             pastLogMessages.forEach(this::onLogReceived);
@@ -149,8 +154,7 @@ public class CaptchaPicker extends TemporalModule implements Behaviour {
     @Override
     protected void goBack() {
         this.toCollect = null; // Make sure we let them GC
-
-        super.goBack();
+        if (mainModule != null) main.setModule(mainModule);
     }
 
     private enum Captcha {

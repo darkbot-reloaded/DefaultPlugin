@@ -23,6 +23,8 @@ import java.util.stream.Stream;
 @Feature(name = "Captcha picker", description = "Picks up captcha boxes when they appear", enabledByDefault = true)
 public class CaptchaPicker extends TemporalModule implements Behaviour {
 
+    private static final Pattern SPECIAL_REGEX = Pattern.compile("[{}()\\[\\].+*?^$\\\\|]");
+
     private static final Set<String> ALL_CAPTCHA_TYPES =
             Arrays.stream(Captcha.values()).map(c -> c.box).collect(Collectors.toSet());
 
@@ -173,16 +175,16 @@ public class CaptchaPicker extends TemporalModule implements Behaviour {
 
                 this.hasAmount = translation.contains("%AMOUNT%");
 
-                pattern = Pattern.compile(translation
-                        .replaceAll("%AMOUNT%", "([0-9]+)")
-                        .replaceAll("%TIME%", "([0-9]+)"));
+                pattern = Pattern.compile(escapeRegex(translation)
+                        .replace("%AMOUNT%", "(?<amount>[0-9]+)")
+                        .replace("%TIME%", "(?<time>[0-9]+)"));
             }
 
             Matcher m = pattern.matcher(log);
             boolean matched = m.matches();
             if (hasAmount && matched) {
-                amount = Integer.parseInt(m.group(1));
-                time = Integer.parseInt(m.group(2));
+                amount = Integer.parseInt(m.group("amount"));
+                time = Integer.parseInt(m.group("time"));
             }
             return matched;
         }
@@ -196,4 +198,9 @@ public class CaptchaPicker extends TemporalModule implements Behaviour {
             return name() + (hasAmount ?  " " + amount : "");
         }
     }
+
+    private static String escapeRegex(String str) {
+        return SPECIAL_REGEX.matcher(str).replaceAll("\\\\$0");
+    }
+
 }

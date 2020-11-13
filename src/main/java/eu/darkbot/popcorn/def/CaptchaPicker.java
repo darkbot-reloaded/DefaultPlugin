@@ -101,6 +101,8 @@ public class CaptchaPicker extends TemporalModule implements Behaviour {
         if (isWaiting()) return;
 
         if (toCollect == null) {
+            if (captchaType == null) return;
+
             Stream<Box> boxStream = boxes.stream()
                     .filter(captchaType::matches)
                     .sorted(Comparator.comparingDouble(box -> hero.locationInfo.now.distance(box)));

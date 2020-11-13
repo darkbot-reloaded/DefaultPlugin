@@ -102,6 +102,8 @@ public class CaptchaPicker extends TemporalModule implements Behaviour {
     public void tick() {
         if (isWaiting()) return;
 
+        drive.stop(false);
+
         if (toCollect == null) {
             if (captchaType == null) return;
 

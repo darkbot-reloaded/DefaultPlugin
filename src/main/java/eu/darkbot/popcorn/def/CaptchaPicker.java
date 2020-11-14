@@ -101,6 +101,7 @@ public class CaptchaPicker extends TemporalModule implements Behaviour {
     @Override
     public void tick() {
         if (isWaiting()) return;
+        if (!hasAnyCaptchaBox()) goBack();
 
         drive.stop(false);
 
@@ -117,8 +118,6 @@ public class CaptchaPicker extends TemporalModule implements Behaviour {
 
         toCollect.stream().filter(b -> !b.isCollected())
                 .findFirst().ifPresent(this::collectBox);
-
-        if (!hasAnyCaptchaBox()) goBack();
     }
 
     private boolean hasAnyCaptchaBox() {

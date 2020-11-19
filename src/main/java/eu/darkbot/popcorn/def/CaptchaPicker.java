@@ -38,7 +38,7 @@ public class CaptchaPicker extends TemporalModule implements Behaviour {
 
     private Captcha captchaType;
     private List<Box> boxes, toCollect;
-    private long waiting;
+    private long waiting, maxActiveTime;
 
     @Override
     public void install(Main main) {
@@ -95,7 +95,10 @@ public class CaptchaPicker extends TemporalModule implements Behaviour {
         }
 
         // Set module to work if there's any
-        if (main.module != this && hasAnyCaptchaBox()) main.setModule(this);
+        if (main.module != this && hasAnyCaptchaBox()) {
+            maxActiveTime = System.currentTimeMillis() + 60_000; // 1 Minute max to solve
+            main.setModule(this);
+        }
     }
 
     @Override
@@ -104,6 +107,12 @@ public class CaptchaPicker extends TemporalModule implements Behaviour {
         if (!hasAnyCaptchaBox()) goBack();
 
         drive.stop(false);
+
+        if (System.currentTimeMillis() > maxActiveTime) {
+            System.out.println("Triggering refresh: Timed out trying to solve captcha");
+            goBack();
+            Main.API.handleRefresh();
+        }
 
         if (toCollect == null) {
             if (captchaType == null) return;

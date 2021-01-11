@@ -32,9 +32,9 @@ public class FlashPatcher implements Task {
                     "EOLUninstallDisable=1");
 
     private static final List<String> TEMP_BATCH = Arrays.asList(
-            "mkdir " + FLASH_FOLDER.toAbsolutePath().toString(),
-            "move " + TMP_CONFIG.toAbsolutePath().toString() + " " + FLASH_CONFIG.toAbsolutePath().toString(),
-            "del " + TMP_SCRIPT.toAbsolutePath().toString());
+            "mkdir \"" + FLASH_FOLDER.toAbsolutePath().toString() + "\"",
+            "move \"" + TMP_CONFIG.toAbsolutePath().toString() + "\" \"" + FLASH_CONFIG.toAbsolutePath().toString() + "\"",
+            "del \"" + TMP_SCRIPT.toAbsolutePath().toString() + "\"");
 
     @Override
     public void install(Main main) {

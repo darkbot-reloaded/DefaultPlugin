@@ -26,12 +26,17 @@ public class FlashPatcher implements Task {
                     "EnableAllowList=1",
                     "AllowListPreview=1",
                     "AllowListRootMovieOnly=1",
-                    "AllowlistUrlPattern=https://*.bpsecure.com/",
+                    "AllowListUrlPattern=https://*.bpsecure.com/",
                     "SilentAutoUpdateEnable=1",
+                    "EnableWhiteList=1",
+                    "WhiteListPreview=1",
+                    "WhiteListRootMovieOnly=1",
+                    "WhiteListUrlPattern=https://*.bpsecure.com/",
                     "AutoUpdateDisable=1",
                     "EOLUninstallDisable=1");
 
     private static final List<String> TEMP_BATCH = Arrays.asList(
+            "chcp 65001",
             "mkdir \"" + FLASH_FOLDER.toAbsolutePath().toString() + "\"",
             "move \"" + TMP_CONFIG.toAbsolutePath().toString() + "\" \"" + FLASH_CONFIG.toAbsolutePath().toString() + "\"",
             "del \"" + TMP_SCRIPT.toAbsolutePath().toString() + "\"");

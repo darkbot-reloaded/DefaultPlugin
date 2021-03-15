@@ -96,7 +96,7 @@ public class CaptchaPicker extends TemporalModule implements Behaviour {
 
         // Set module to work if there's any
         if (main.module != this && hasAnyCaptchaBox()) {
-            maxActiveTime = System.currentTimeMillis() + 60_000; // 1 Minute max to solve
+            maxActiveTime = System.currentTimeMillis() + 30_000; // 30sec max to solve
             main.setModule(this);
         }
     }

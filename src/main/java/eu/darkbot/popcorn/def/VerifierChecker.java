@@ -28,6 +28,7 @@ public class VerifierChecker {
     public static void checkAuthenticity() {
         AuthAPI api = VerifierChecker.getAuthApi();
         if (!api.isAuthenticated()) api.setupAuth();
+        api.getAuthId();
     }
 
     public static AuthAPI getAuthApi() {

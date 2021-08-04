@@ -129,6 +129,12 @@ public class CaptchaPicker extends TemporalModule implements Behaviour {
                 .findFirst().ifPresent(this::collectBox);
     }
 
+    @Override
+    public void tickStopped() {
+        // While paused or invalid, add 30s to solve
+        maxActiveTime = System.currentTimeMillis() + 30_000;
+    }
+
     private boolean hasAnyCaptchaBox() {
         return boxes.stream().map(b -> b.type)
                 .anyMatch(ALL_CAPTCHA_TYPES::contains);

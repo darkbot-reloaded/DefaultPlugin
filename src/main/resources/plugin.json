@@ -1,9 +1,9 @@
 {
 	"name": "Default plugin",
 	"author": "Popcorn",
-	"version": "1.7.2",
+	"version": "1.7.3",
 	"minVersion": "1.13.17 beta 90",
-	"supportedVersion": "1.13.17 beta 94",
+	"supportedVersion": "1.13.17 beta 99",
 	"features": [
 		"eu.darkbot.popcorn.def.CaptchaPicker",
 		"eu.darkbot.popcorn.def.PalladiumModule",
@@ -12,6 +12,6 @@
 		"eu.darkbot.popcorn.def.UserAgentUpdater",
 		"eu.darkbot.popcorn.def.SampleModule"
 	],
-	"download": "https://github.com/darkbot-reloaded/DefaultPlugin/releases/download/v1.7.2/DefaultPlugin.jar",
+	"download": "https://github.com/darkbot-reloaded/DefaultPlugin/releases/download/v1.7.3/DefaultPlugin.jar",
 	"update": "https://raw.githubusercontent.com/darkbot-reloaded/DefaultPlugin/master/src/main/resources/plugin.json"
 }

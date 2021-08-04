@@ -6,3 +6,4 @@ out/*
 /out
 dependency-reduced-pom.xml
 /*.jar
+*.iml

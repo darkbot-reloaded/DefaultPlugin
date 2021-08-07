@@ -1,19 +1,21 @@
 package eu.darkbot.popcorn.def;
 
-import com.github.manolo8.darkbot.Main;
-import com.github.manolo8.darkbot.config.NpcExtraFlag;
-import com.github.manolo8.darkbot.config.types.Editor;
-import com.github.manolo8.darkbot.config.types.Num;
-import com.github.manolo8.darkbot.config.types.Option;
-import com.github.manolo8.darkbot.core.itf.Configurable;
-import com.github.manolo8.darkbot.core.itf.ExtraMenuProvider;
-import com.github.manolo8.darkbot.core.itf.Module;
-import com.github.manolo8.darkbot.core.itf.NpcExtraProvider;
-import com.github.manolo8.darkbot.core.utils.Drive;
-import com.github.manolo8.darkbot.extensions.features.Feature;
-import com.github.manolo8.darkbot.gui.tree.components.JPercentField;
-import com.github.manolo8.darkbot.gui.utils.Popups;
-import com.github.manolo8.darkbot.utils.AuthAPI;
+import eu.darkbot.api.PluginAPI;
+import eu.darkbot.api.config.ConfigSetting;
+import eu.darkbot.api.config.annotations.Configuration;
+import eu.darkbot.api.config.annotations.Number;
+import eu.darkbot.api.config.annotations.Percentage;
+import eu.darkbot.api.extensions.Configurable;
+import eu.darkbot.api.extensions.ExtraMenus;
+import eu.darkbot.api.extensions.Feature;
+import eu.darkbot.api.extensions.Module;
+import eu.darkbot.api.extensions.NpcFlags;
+import eu.darkbot.api.extensions.PluginInfo;
+import eu.darkbot.api.managers.AuthAPI;
+import eu.darkbot.api.managers.ExtensionsAPI;
+import eu.darkbot.api.managers.I18nAPI;
+import eu.darkbot.api.managers.MovementAPI;
+import eu.darkbot.util.Popups;
 
 import javax.swing.*;
 import java.util.Arrays;
@@ -23,37 +25,34 @@ import java.util.Collection;
 public class SampleModule implements
         Module, // This, is a module, and should appear to be picked in the list of modules
         Configurable<SampleModule.SampleConfig>, // The module has a configuration, of the class SampleModule.SampleConfig
-        NpcExtraProvider, // The module provides extra flags for npcs, they'll apear in the flags column
-        ExtraMenuProvider { // The module provides extra buttons for the main menu in dark bot
+        NpcFlags<SampleModule.Extra>, // The module provides extra flags for npcs, they'll apear in the flags column
+        ExtraMenus { // The module provides extra buttons for the main menu in dark bot
 
+    private final MovementAPI movement;
 
-    // Module
-
-    private Drive drive;
     /**
-     * The install method, provides you with an instance of Main that you should "install" for, this means
-     * that if you want any info from main (like what ships are on the map) you should get it from this main.
-     * You'll often want to save this on a field to use on the tick() method later.
-     * @param main The main to use
+     * The constructor, provides you with instances to all the apis you want to make use of
+     * You can check the classes in {@link eu.darkbot.api.managers} package to see the different apis available
+     * @param movement The movement API used to move the ship around
      */
-    @Override
-    public void install(Main main) {
+    public SampleModule(MovementAPI movement, AuthAPI auth) {
         // Ensure that the verifier is from this plugin and properly signed by yourself
-        // If it isn't don't install for this main.
-        if (!Arrays.equals(VerifierChecker.class.getSigners(), getClass().getSigners())) return;
+        // If it isn't, fail with a security exception.
+        if (!Arrays.equals(VerifierChecker.class.getSigners(), getClass().getSigners()))
+            throw new SecurityException();
+        VerifierChecker.verifyAuthApi(auth);
 
-        AuthAPI api = VerifierChecker.getAuthApi();
 
         // If the user isn't verified, setup auth.
         // This should be done regardless of if you enforce donors-only on your modules
-        if (!api.isAuthenticated()) api.setupAuth();
+        if (!auth.isAuthenticated()) auth.setupAuth();
 
         // Alternatively if you want to enforce donors-only on your features, use this instead
         // You should not do both, as requireDonor will take care of setting up auth
-        //if (!VerifierChecker.getAuthApi().requireDonor()) return;
+        //if (!auth.requireDonor()) return;
 
 
-        this.drive = main.hero.drive;
+        this.movement = movement;
     }
 
     /**
@@ -71,7 +70,7 @@ public class SampleModule implements
      * @return The status of the module
      */
     @Override
-    public String status() {
+    public String getStatus() {
         return "Sample module - Moving : " + config.MOVE_SHIP +
                 " - " + (config.PERCENTAGE_VALUE * 100) + "%";
     }
@@ -81,16 +80,12 @@ public class SampleModule implements
      * is running for, usually every ~15ms, but you should not rely on timing.
      * The function MUST be non-blocking. No Thread.sleep or calls to the internet.
      * If you need to perform blocking operations you should look into Tasks, not modules.
-     *
-     * Note: If you implement BOTH module and task/behaviour, it is best to create an empty tick function,
-     * and implement tickModule, tickBehaviour or tickTask separately. Otherwise the same tick function
-     * could be calling from all 3 places and you do not know which is which.
      */
     @Override
-    public void tick() {
+    public void onTickModule() {
         // Simple logic, just move randomly if the config checked MOVE_SHIP
         // moveRandom will already perform all logic of preferred zones
-        if (config.MOVE_SHIP && !drive.isMoving()) drive.moveRandom();
+        if (config.MOVE_SHIP && !movement.isMoving()) movement.moveRandom();
     }
 
 
@@ -101,23 +96,26 @@ public class SampleModule implements
      * This just shows a few examples of bundled editors for basic data types
      *
      * For more examples on what editors are available, check the main Config.java file on DarkBot
+     *
+     * To set the names of the configs, create a resource file strings_en.properties in the proper package, and
+     * set them with the proper keys. You can create different resource files for different languages.
+     *
+     * All fields will be considered configs by default, you can set allOptions to false in the
+     * Configuration annotation to disable this and then add @Option to each field you want to be an option.
+     * You can exclude fields by annotating them with @Option.Ignore
      */
+    @Configuration("sample_module.config")
     public static class SampleConfig {
-        @Option("Some boolean checkbox")
         public boolean BOOLEAN_VALUE = true;
 
-        @Option("Integer limited to 1-999")
-        @Num(min = 1, max = 999)
+        @Number(min = 1, max = 999)
         public int INTEGER_LIMIT = 1;
 
-        @Option("% value, can be used for health")
-        @Editor(JPercentField.class)
+        @Percentage
         public double PERCENTAGE_VALUE = 0.5; // Ranges from 0 to 1, 75% = 0.75
 
-        @Option("Hotkey to press")
         public Character key;
 
-        @Option("Move ship")
         public boolean MOVE_SHIP;
     }
 
@@ -125,69 +123,54 @@ public class SampleModule implements
     private SampleConfig config;
 
     /**
-     * The method will be called from outside, providing the config to use, saving it in a field
+     * The method will be called from outside, providing the config to use for this.
+     * The object instance for configuration will be inside config.getValue, however,
+     * the object instance will act as a read-only object, where changes will not be
+     * reflected back to the user in the config tree.
+     * To make meaningful changes to the configuration (visible to the user) use
+     * setValue on the config setting instead.
+     *
      * @param config The config this module should use
      */
     @Override
-    public void setConfig(SampleConfig config) {
-        this.config = config;
+    public void setConfig(ConfigSetting<SampleConfig> config) {
+        this.config = config.getValue();
     }
 
 
     // Extra npc flags
 
     /**
-     * Provide all the NpcExtraFlags in the method
-     */
-    @Override
-    public NpcExtraFlag[] values() {
-        return Extra.values();
-    }
-
-    /**
-     * The easiest way of making flags, is an enum implementing the interface,
+     * Define an enum that is used as the generic parameter
      * where you can add as many entries as you wish.
-     * Then from the config it's easy to check if npcInfo#has(Extra.WEIRD_FLAG)
+     * Then from the config it's easy to check if npcInfo#hasExtraFlag(Extra.WEIRD_FLAG)
      */
-    private enum Extra implements NpcExtraFlag {
-        SAMPLE_FLAG("SF", "Sample flag", "Sample flag for testing purposes, provided by sample module");
-
-        private final String shortName, name, description;
-        Extra(String shortName, String name, String description) {
-            this.shortName = shortName;
-            this.name = name;
-            this.description = description;
-        }
-
-        @Override
-        public String getShortName() {
-            return shortName;
-        }
-
-        @Override
-        public String getName() {
-            return name;
-        }
-
-        @Override
-        public String getDescription() {
-            return description;
-        }
+    @Configuration("sample_module.flags")
+    public enum Extra {
+        SAMPLE_FLAG
     }
 
     // Extra menu provider
 
     /**
      * Return the menu items to show in the extra menu.
-     * @param main The main to create menu items for. You may not need it
+     * @param api The api to create menu items for.
      * @return The list of menu items to add
      */
     @Override
-    public Collection<JComponent> getExtraMenuItems(Main main) {
+    public Collection<JComponent> getExtraMenuItems(PluginAPI api) {
+        // Get i18n to be able to translate
+        I18nAPI i18n = api.requireAPI(I18nAPI.class);
+        // Get extensions api to get a plugin
+        ExtensionsAPI extensionsAPI = api.requireAPI(ExtensionsAPI.class);
+        // Find the plugin info for our own class
+        PluginInfo plugin = extensionsAPI.getFeatureInfo(getClass()).getPluginInfo();
+
         return Arrays.asList(
-                createSeparator("Sample"),
-                create("Sample menu", e -> Popups.showMessageAsync(
-                        "Sample popup",
+                // Use i18n with the plugin as context to find translations in our plugin resource file
+                createSeparator(i18n.get(plugin, "sample_module.menu.separator")),
+                create(i18n.get(plugin, "sample_module.menu.menu_entry"), e -> Popups.showMessageAsync(
+                        "Sample popup", // These could also come from translation file, but for simplicity they don't
                         "Just a pop-up created when pressing the sample module",
                         JOptionPane.INFORMATION_MESSAGE)));
     }

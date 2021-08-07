@@ -1,30 +1,56 @@
 package eu.darkbot.popcorn.def;
 
-import com.github.manolo8.darkbot.Main;
-import com.github.manolo8.darkbot.core.entities.BasePoint;
-import com.github.manolo8.darkbot.core.itf.InstructionProvider;
-import com.github.manolo8.darkbot.core.manager.StatsManager;
-import com.github.manolo8.darkbot.core.objects.Map;
-import com.github.manolo8.darkbot.core.objects.OreTradeGui;
-import com.github.manolo8.darkbot.core.utils.Location;
-import com.github.manolo8.darkbot.extensions.features.Feature;
-import com.github.manolo8.darkbot.modules.LootNCollectorModule;
-import com.github.manolo8.darkbot.modules.MapModule;
+import eu.darkbot.api.PluginAPI;
+import eu.darkbot.api.extensions.Feature;
+import eu.darkbot.api.extensions.InstructionProvider;
+import eu.darkbot.api.game.entities.Station;
+import eu.darkbot.api.game.other.GameMap;
+import eu.darkbot.api.game.other.Location;
+import eu.darkbot.api.managers.AuthAPI;
+import eu.darkbot.api.managers.BotAPI;
+import eu.darkbot.api.managers.EntitiesAPI;
+import eu.darkbot.api.managers.OreAPI;
+import eu.darkbot.api.managers.StarSystemAPI;
+import eu.darkbot.api.managers.StatsAPI;
+import eu.darkbot.shared.modules.LootCollectorModule;
+import eu.darkbot.shared.modules.MapModule;
 
 import java.util.Arrays;
-import java.util.List;
+import java.util.Collection;
 
 @Feature(name = "Palladium Module", description = "Loot & collect, but when full cargo is full travels to 5-2 to sell")
-public class PalladiumModule extends LootNCollectorModule implements InstructionProvider {
+public class PalladiumModule extends LootCollectorModule implements InstructionProvider {
 
-    private Map SELL_MAP;
 
-    private Main main;
-    private StatsManager statsManager;
-    private List<BasePoint> bases;
-    private OreTradeGui oreTrade;
+    private final PluginAPI api;
+    private final BotAPI bot;
+    private final StatsAPI stats;
+    private final OreAPI ores;
+
+    private final GameMap SELL_MAP;
+    private final Collection<? extends Station> bases;
 
     private long sellClick;
+
+    public PalladiumModule(PluginAPI api,
+                           BotAPI bot,
+                           StatsAPI stats,
+                           OreAPI ores,
+                           EntitiesAPI entities,
+                           StarSystemAPI starSystem,
+                           AuthAPI auth) throws StarSystemAPI.MapNotFoundException {
+        super(api);
+        if (!Arrays.equals(VerifierChecker.class.getSigners(), getClass().getSigners())) throw new SecurityException();
+        VerifierChecker.checkAuthenticity(auth);
+
+        this.api = api;
+        this.bot = bot;
+        this.stats = stats;
+        this.ores = ores;
+
+        this.SELL_MAP = starSystem.getByName("5-2");
+        this.bases = entities.getStations();
+    }
 
     @Override
     public String instructions() {
@@ -40,37 +66,31 @@ public class PalladiumModule extends LootNCollectorModule implements Instruction
     }
 
     @Override
-    public void install(Main main) {
-        if (!Arrays.equals(VerifierChecker.class.getSigners(), getClass().getSigners())) return;
-        VerifierChecker.checkAuthenticity();
-        super.install(main);
-        this.SELL_MAP = main.starManager.byName("5-2");
-
-        this.main = main;
-        this.statsManager = main.statsManager;
-        this.bases = main.mapManager.entities.basePoints;
-        this.oreTrade = main.guiManager.oreTrade;
-    }
-
-    @Override
-    public void tick() {
-        if (statsManager.deposit >= statsManager.depositTotal && statsManager.depositTotal != 0) sell();
-        else if (System.currentTimeMillis() - 500 > sellClick && oreTrade.showTrade(false, null)) super.tick();
+    public void onTickModule() {
+        if (stats.getCargo() >= stats.getMaxCargo() && stats.getMaxCargo() != 0) sell();
+        else if (System.currentTimeMillis() - 500 > sellClick && ores.showTrade(false, null)) super.onTickModule();
     }
 
     private void sell() {
         pet.setEnabled(false);
-        if (hero.map != SELL_MAP) main.setModule(new MapModule()).setTarget(SELL_MAP);
-        else bases.stream().filter(b -> b.locationInfo.isLoaded()).findFirst().ifPresent(base -> {
-            if (drive.movingTo().distance(base.locationInfo.now) > 200) { // Move to base
-                double angle = base.locationInfo.now.angle(hero.locationInfo.now) + Math.random() * 0.2 - 0.1;
-                drive.move(Location.of(base.locationInfo.now, angle, 100 + (100 * Math.random())));
-            } else if (!hero.locationInfo.isMoving() && oreTrade.showTrade(true, base)
-                    && System.currentTimeMillis() - 60_000 > sellClick) {
-                oreTrade.sellOre(OreTradeGui.Ore.PALLADIUM);
-                sellClick = System.currentTimeMillis();
-            }
-        });
+        if (hero.getMap() != SELL_MAP) {
+            bot.setModule(api.requireInstance(MapModule.class)).setTarget(SELL_MAP);
+            return;
+        }
+        Station.Refinery base = bases.stream()
+                .filter(b -> b instanceof Station.Refinery && b.getLocationInfo().isInitialized())
+                .map(Station.Refinery.class::cast)
+                .findFirst().orElse(null);
+        if (base == null) return;
+
+        if (movement.getDestination().distanceTo(base) > 200) { // Move to base
+            double angle = base.angleTo(hero) + Math.random() * 0.2 - 0.1;
+            movement.moveTo(Location.of(base, angle, 100 + (100 * Math.random())));
+        } else if (!hero.isMoving() && ores.showTrade(true, base)
+                && System.currentTimeMillis() - 60_000 > sellClick) {
+            ores.sellOre(OreAPI.Ore.PALLADIUM);
+            sellClick = System.currentTimeMillis();
+        }
     }
 
 }

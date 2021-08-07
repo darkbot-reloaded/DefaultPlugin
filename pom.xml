@@ -28,6 +28,11 @@
             <artifactId>DarkBot</artifactId>
             <version>master-SNAPSHOT</version>
         </dependency>
+        <dependency>
+            <groupId>eu.darkbot</groupId>
+            <artifactId>darkbot-common</artifactId>
+            <version>0.1</version>
+        </dependency>
     </dependencies>
 
     <build>

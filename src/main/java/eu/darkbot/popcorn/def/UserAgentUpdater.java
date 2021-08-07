@@ -1,27 +1,24 @@
 package eu.darkbot.popcorn.def;
 
-import com.github.manolo8.darkbot.Main;
-import com.github.manolo8.darkbot.config.ConfigEntity;
-import com.github.manolo8.darkbot.config.tree.ConfigField;
-import com.github.manolo8.darkbot.config.types.Editor;
-import com.github.manolo8.darkbot.config.types.Length;
-import com.github.manolo8.darkbot.config.types.Option;
-import com.github.manolo8.darkbot.core.itf.Configurable;
-import com.github.manolo8.darkbot.core.itf.Task;
-import com.github.manolo8.darkbot.extensions.features.Feature;
-import com.github.manolo8.darkbot.gui.tree.OptionEditor;
-import com.github.manolo8.darkbot.gui.tree.components.JLabelField;
-import com.github.manolo8.darkbot.utils.Time;
-import com.github.manolo8.darkbot.utils.http.Http;
+import eu.darkbot.api.config.ConfigSetting;
+import eu.darkbot.api.config.annotations.Configuration;
+import eu.darkbot.api.config.annotations.Editor;
+import eu.darkbot.api.config.util.OptionEditor;
+import eu.darkbot.api.extensions.Configurable;
+import eu.darkbot.api.extensions.Feature;
+import eu.darkbot.api.extensions.Task;
+import eu.darkbot.api.managers.AuthAPI;
+import eu.darkbot.api.managers.ConfigAPI;
+import eu.darkbot.util.http.Http;
 
 import javax.swing.*;
+import java.awt.*;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
-import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -31,33 +28,39 @@ public class UserAgentUpdater implements Task, Configurable<UserAgentUpdater.Con
     private static final String URL = "http://darkorbit-22-client.bpsecure.com/bpflashclient/windows.x64/repository/Updates.xml";
     private static final Pattern VERSION = Pattern.compile("<version>(.*)</version>", Pattern.CASE_INSENSITIVE);
 
-    private Config config;
+    private static final long HOUR = 3600 * 1000;
 
+    private final ConfigAPI configAPI;
+
+    private ConfigSetting<String> userAgent;
+    private ConfigSetting<Long> nextUpdate;
+
+    public UserAgentUpdater(ConfigAPI configAPI, AuthAPI auth) {
+        if (!Arrays.equals(VerifierChecker.class.getSigners(), getClass().getSigners())) throw new SecurityException();
+        VerifierChecker.checkAuthenticity(auth);
+
+        this.configAPI = configAPI;
+    }
+
+    @Configuration("agent_updater.config")
     public static class Config {
-        @Option("User agent (auto-updated)")
-        @Editor(JLabelField.class)
+        @Editor(JLabelEditor.class)
         public String USER_AGENT = Http.getDefaultUserAgent();
-        @Option("Next update")
         @Editor(JTimeDisplay.class)
         public long NEXT_UPDATE = System.currentTimeMillis();
     }
 
     @Override
-    public void setConfig(Config config) {
-        if (!Arrays.equals(VerifierChecker.class.getSigners(), getClass().getSigners())) return;
-        VerifierChecker.checkAuthenticity();
+    public void setConfig(ConfigSetting<Config> config) {
+        this.userAgent = configAPI.getConfig(config, "user_agent");
+        this.nextUpdate = configAPI.getConfig(config, "next_update");
 
-        this.config = config;
-        Http.setDefaultUserAgent(config.USER_AGENT);
+        Http.setDefaultUserAgent(userAgent.getValue());
     }
 
     @Override
-    public void install(Main main) {
-    }
-
-    @Override
-    public void tick() {
-        if (System.currentTimeMillis() <= config.NEXT_UPDATE) return;
+    public void onTickTask() {
+        if (System.currentTimeMillis() <= nextUpdate.getValue()) return;
 
         String version = Http.create(URL).consumeInputStream(in ->
                 new BufferedReader(new InputStreamReader(in)).lines()
@@ -66,28 +69,65 @@ public class UserAgentUpdater implements Task, Configurable<UserAgentUpdater.Con
                         .map(matcher -> matcher.group(1))
                         .findFirst().orElse(null));
 
-        if (version == null) config.NEXT_UPDATE = System.currentTimeMillis() + Time.HOUR;
+        if (version == null) nextUpdate.setValue(System.currentTimeMillis() + HOUR);
         else {
-            config.USER_AGENT = "BigpointClient/" + version;
-            Http.setDefaultUserAgent(config.USER_AGENT);
-            config.NEXT_UPDATE = System.currentTimeMillis() + (6 * Time.HOUR);
+            userAgent.setValue("BigpointClient/" + version);
+            Http.setDefaultUserAgent(userAgent.getValue());
+            nextUpdate.setValue(System.currentTimeMillis() + (6 * HOUR));
         }
-        ConfigEntity.changed();
     }
 
-    public static class JTimeDisplay extends JLabelField {
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss");
+    public static class JLabelEditor extends TableOptimizedJLabel implements OptionEditor<String> {
 
         @Override
-        public JComponent getComponent() {
+        public JComponent getEditorComponent(ConfigSetting<String> setting) {
+            setText(setting.getValue());
             return this;
         }
 
         @Override
-        public void edit(ConfigField field) {
-            long time = field.get();
-            this.setText(Instant.ofEpochMilli(time).atZone(ZoneId.systemDefault()).format(formatter));
+        public String getEditorValue() {
+            return getText();
         }
+    }
+
+    public static class JTimeDisplay extends TableOptimizedJLabel implements OptionEditor<Long> {
+        private final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss");
+
+        private Long value;
+
+        @Override
+        public JComponent getEditorComponent(ConfigSetting<Long> time) {
+            this.value = time.getValue();
+            this.setText(Instant.ofEpochMilli(value).atZone(ZoneId.systemDefault()).format(formatter));
+            return this;
+        }
+
+        @Override
+        public Long getEditorValue() {
+            return value;
+        }
+    }
+
+
+    static class TableOptimizedJLabel extends JLabel {
+        /**
+         * No-op methods improve performance when using this as a cell renderer, and they are not needed anyways.
+         */
+        public void validate() {}
+        public void invalidate() {}
+        public void revalidate() {}
+        public void repaint(long tm, int x, int y, int width, int height) {}
+        public void repaint(Rectangle r) {}
+        public void repaint() {}
+        public void firePropertyChange(String propertyName, byte oldValue, byte newValue) {}
+        public void firePropertyChange(String propertyName, char oldValue, char newValue) {}
+        public void firePropertyChange(String propertyName, short oldValue, short newValue) {}
+        public void firePropertyChange(String propertyName, int oldValue, int newValue) {}
+        public void firePropertyChange(String propertyName, long oldValue, long newValue) {}
+        public void firePropertyChange(String propertyName, float oldValue, float newValue) {}
+        public void firePropertyChange(String propertyName, double oldValue, double newValue) {}
+        public void firePropertyChange(String propertyName, boolean oldValue, boolean newValue) {}
     }
 
 }

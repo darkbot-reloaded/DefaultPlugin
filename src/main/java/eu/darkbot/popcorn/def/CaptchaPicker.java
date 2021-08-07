@@ -1,77 +1,82 @@
 package eu.darkbot.popcorn.def;
 
-import com.github.manolo8.darkbot.Main;
-import com.github.manolo8.darkbot.backpage.FlashResManager;
-import com.github.manolo8.darkbot.core.entities.Box;
-import com.github.manolo8.darkbot.core.itf.Behaviour;
-import com.github.manolo8.darkbot.core.manager.HeroManager;
-import com.github.manolo8.darkbot.core.utils.Drive;
-import com.github.manolo8.darkbot.extensions.features.Feature;
-import com.github.manolo8.darkbot.modules.TemporalModule;
+import eu.darkbot.api.events.EventHandler;
+import eu.darkbot.api.events.Listener;
+import eu.darkbot.api.extensions.Behavior;
+import eu.darkbot.api.extensions.Feature;
+import eu.darkbot.api.game.entities.Box;
+import eu.darkbot.api.managers.AuthAPI;
+import eu.darkbot.api.managers.BotAPI;
+import eu.darkbot.api.managers.EntitiesAPI;
+import eu.darkbot.api.managers.GameResourcesAPI;
+import eu.darkbot.api.managers.HeroAPI;
+import eu.darkbot.api.managers.GameLogAPI.LogMessageEvent;
+import eu.darkbot.api.managers.MovementAPI;
+import eu.darkbot.api.managers.WindowAPI;
+import eu.darkbot.shared.modules.TemporalModule;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Feature(name = "Captcha picker", description = "Picks up captcha boxes when they appear", enabledByDefault = true)
-public class CaptchaPicker extends TemporalModule implements Behaviour {
+public class CaptchaPicker extends TemporalModule implements Behavior, Listener {
 
     private static final Pattern SPECIAL_REGEX = Pattern.compile("[{}()\\[\\].+*?^$\\\\|]");
 
     private static final Set<String> ALL_CAPTCHA_TYPES =
             Arrays.stream(Captcha.values()).map(c -> c.box).collect(Collectors.toSet());
 
-    private Main main;
-    private HeroManager hero;
-    private Drive drive;
+    private final BotAPI bot;
+    private final HeroAPI hero;
+    private final MovementAPI movement;
+    private final WindowAPI window;
+    private final GameResourcesAPI gameResources;
 
-    private FlashResManager flashResManager;
-    private final Consumer<String> logConsumer = this::onLogReceived;
-    private final List<String> pastLogMessages = new ArrayList<>();
+    private final Collection<? extends Box> boxes;
+
+    private final List<LogMessageEvent> pastLogMessages = new ArrayList<>();
 
     private Captcha captchaType;
-    private List<Box> boxes, toCollect;
+    private List<Box> toCollect;
     private long waiting, maxActiveTime;
 
-    @Override
-    public void install(Main main) {
-        if (!Arrays.equals(VerifierChecker.class.getSigners(), getClass().getSigners())) return;
-        VerifierChecker.checkAuthenticity();
-        super.install(main);
+    public CaptchaPicker(BotAPI bot,
+                         HeroAPI hero,
+                         MovementAPI movement,
+                         WindowAPI window,
+                         GameResourcesAPI gameResources,
+                         EntitiesAPI entities,
+                         AuthAPI auth) {
+        super(bot);
+        if (!Arrays.equals(VerifierChecker.class.getSigners(), getClass().getSigners())) throw new SecurityException();
+        VerifierChecker.checkAuthenticity(auth);
 
-        this.main = main;
-        this.hero = main.hero;
-        this.drive = main.hero.drive;
-        this.flashResManager = main.featureRegistry.getFeature(FlashResManager.class)
-                .orElseThrow(IllegalStateException::new);
-        this.boxes = main.mapManager.entities.boxes;
-
-        this.toCollect = null;
-
-        main.facadeManager.log.logs.add(logConsumer);
+        this.bot = bot;
+        this.hero = hero;
+        this.movement = movement;
+        this.window = window;
+        this.gameResources = gameResources;
+        this.boxes = entities.getBoxes();
     }
 
-    @Override
-    public void uninstall() {
-        main.facadeManager.log.logs.remove2(logConsumer);
-    }
-
-    private void onLogReceived(String log) {
+    @EventHandler
+    private void onLogReceived(LogMessageEvent ev) {
         // Previous to flash resource manager initialization, translations may be null, if so, store messages.
-        if (flashResManager.getTranslation(Captcha.SOME_RED.key) == null) {
-            pastLogMessages.add(log);
+        if (!gameResources.findTranslation(Captcha.SOME_RED.key).isPresent()) {
+            pastLogMessages.add(ev);
             return;
         }
 
         for (Captcha captcha : Captcha.values()) {
-            if (captcha.matches(log, flashResManager)) setCurrentCaptcha(captcha);
+            if (captcha.matches(ev.getMessage(), gameResources)) setCurrentCaptcha(captcha);
         }
     }
 
@@ -81,45 +86,45 @@ public class CaptchaPicker extends TemporalModule implements Behaviour {
     }
 
     @Override
-    public String status() {
+    public String getStatus() {
         return "Solving captcha: Collecting " + (captchaType == null ? "(waiting for log...)" :
                 (captchaType.hasAmount ? captchaType.amount : "all") + " " + captchaType.box + " box(es)");
     }
 
     @Override
-    public void tickBehaviour() {
+    public void onTickBehavior() {
         // Translations finally loaded, process past message
-        if (!pastLogMessages.isEmpty() && flashResManager.getTranslation(Captcha.SOME_RED.key) != null) {
+        if (!pastLogMessages.isEmpty() && gameResources.findTranslation(Captcha.SOME_RED.key).isPresent()) {
             pastLogMessages.forEach(this::onLogReceived);
             pastLogMessages.clear();
         }
 
         // Set module to work if there's any
-        if (main.module != this && hasAnyCaptchaBox()) {
+        if (bot.getModule() != this && hasAnyCaptchaBox()) {
             maxActiveTime = System.currentTimeMillis() + 30_000; // 30sec max to solve
-            main.setModule(this);
+            bot.setModule(this);
         }
     }
 
     @Override
-    public void tick() {
+    public void onTickModule() {
         if (isWaiting()) return;
         if (!hasAnyCaptchaBox()) goBack();
 
-        drive.stop(false);
+        movement.stop(false);
 
         if (System.currentTimeMillis() > maxActiveTime) {
             System.out.println("Triggering refresh: Timed out trying to solve captcha");
             goBack();
-            Main.API.handleRefresh();
+            window.handleRefresh();
         }
 
         if (toCollect == null) {
             if (captchaType == null) return;
 
-            Stream<Box> boxStream = boxes.stream()
+            Stream<? extends Box> boxStream = boxes.stream()
                     .filter(captchaType::matches)
-                    .sorted(Comparator.comparingDouble(box -> hero.locationInfo.now.distance(box)));
+                    .sorted(Comparator.comparingDouble(hero::distanceTo));
             if (captchaType.hasAmount) boxStream = boxStream.limit(captchaType.amount);
 
             toCollect = boxStream.collect(Collectors.toList());
@@ -130,24 +135,21 @@ public class CaptchaPicker extends TemporalModule implements Behaviour {
     }
 
     @Override
-    public void tickStopped() {
+    public void onTickStopped() {
         // While paused or invalid, add 30s to solve
         maxActiveTime = System.currentTimeMillis() + 30_000;
     }
 
     private boolean hasAnyCaptchaBox() {
-        return boxes.stream().map(b -> b.type)
-                .anyMatch(ALL_CAPTCHA_TYPES::contains);
+        return boxes.stream().map(Box::getTypeName).anyMatch(ALL_CAPTCHA_TYPES::contains);
     }
 
     private void collectBox(Box box) {
-        box.clickable.setRadius(800);
-        drive.clickCenter(true, box.locationInfo.now);
+        box.tryCollect();
 
-        box.setCollected();
         waiting = System.currentTimeMillis()
                 + Math.min(1_000, box.getRetries() * 100) // Add 100ms per retry, max 1 second
-                + hero.timeTo(hero.locationInfo.distance(box)) + 500;
+                + hero.timeTo(box) + 500;
     }
 
     public boolean isWaiting() {
@@ -161,7 +163,7 @@ public class CaptchaPicker extends TemporalModule implements Behaviour {
     }
 
     @Override
-    protected void goBack() {
+    public void goBack() {
         this.toCollect = null; // Make sure we let them GC
 
         super.goBack();
@@ -183,10 +185,10 @@ public class CaptchaPicker extends TemporalModule implements Behaviour {
             this.key = key;
         }
 
-        public boolean matches(String log, FlashResManager resManager) {
+        public boolean matches(String log, GameResourcesAPI resManager) {
             if (pattern == null) {
                 if (resManager == null) return false;
-                String translation = resManager.getTranslation(key);
+                String translation = resManager.findTranslation(key).orElse(null);
                 if (translation == null || translation.isEmpty()) return false;
 
                 this.hasAmount = translation.contains("%AMOUNT%");
@@ -206,7 +208,7 @@ public class CaptchaPicker extends TemporalModule implements Behaviour {
         }
 
         public boolean matches(Box box) {
-            return this.box.equals(box.type);
+            return this.box.equals(box.getTypeName());
         }
 
         @Override

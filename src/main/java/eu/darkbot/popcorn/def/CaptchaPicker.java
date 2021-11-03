@@ -126,7 +126,8 @@ public class CaptchaPicker extends TemporalModule implements Behaviour {
         }
 
         toCollect.stream().filter(b -> !b.isCollected())
-                .findFirst().ifPresent(this::collectBox);
+                .min(Comparator.comparingDouble(box -> hero.locationInfo.now.distance(box)))
+                .ifPresent(this::collectBox);
     }
 
     @Override

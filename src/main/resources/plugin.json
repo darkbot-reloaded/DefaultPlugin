@@ -1,7 +1,7 @@
 {
 	"name": "Default plugin",
 	"author": "Popcorn",
-	"version": "1.7.3",
+	"version": "1.7.4",
 	"minVersion": "1.13.17 beta 100",
 	"supportedVersion": "1.13.17 beta 100",
 	"features": [

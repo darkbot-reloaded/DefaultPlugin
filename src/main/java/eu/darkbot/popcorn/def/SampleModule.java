@@ -5,14 +5,18 @@ import eu.darkbot.api.config.ConfigSetting;
 import eu.darkbot.api.config.annotations.Configuration;
 import eu.darkbot.api.config.annotations.Number;
 import eu.darkbot.api.config.annotations.Percentage;
+import eu.darkbot.api.config.types.PercentRange;
+import eu.darkbot.api.config.types.ShipMode;
 import eu.darkbot.api.extensions.Configurable;
 import eu.darkbot.api.extensions.ExtraMenus;
 import eu.darkbot.api.extensions.Feature;
 import eu.darkbot.api.extensions.Module;
 import eu.darkbot.api.extensions.NpcFlags;
 import eu.darkbot.api.extensions.PluginInfo;
+import eu.darkbot.api.game.items.SelectableItem;
 import eu.darkbot.api.managers.AuthAPI;
 import eu.darkbot.api.managers.ExtensionsAPI;
+import eu.darkbot.api.managers.HeroAPI;
 import eu.darkbot.api.managers.I18nAPI;
 import eu.darkbot.api.managers.MovementAPI;
 import eu.darkbot.util.Popups;
@@ -117,6 +121,10 @@ public class SampleModule implements
         public Character key;
 
         public boolean MOVE_SHIP;
+
+        public ShipMode SHIP_MODE = ShipMode.of(HeroAPI.Configuration.FIRST, SelectableItem.Formation.HEART);
+
+        public PercentRange PERCENT_RANGE = PercentRange.of(0.5, 0.75);
     }
 
     // Field to save your config instance

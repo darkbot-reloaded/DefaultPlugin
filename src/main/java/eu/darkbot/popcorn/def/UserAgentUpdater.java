@@ -3,6 +3,7 @@ package eu.darkbot.popcorn.def;
 import eu.darkbot.api.config.ConfigSetting;
 import eu.darkbot.api.config.annotations.Configuration;
 import eu.darkbot.api.config.annotations.Editor;
+import eu.darkbot.api.config.annotations.Readonly;
 import eu.darkbot.api.config.util.OptionEditor;
 import eu.darkbot.api.extensions.Configurable;
 import eu.darkbot.api.extensions.Feature;
@@ -44,7 +45,7 @@ public class UserAgentUpdater implements Task, Configurable<UserAgentUpdater.Con
 
     @Configuration("agent_updater.config")
     public static class Config {
-        @Editor(JLabelEditor.class)
+        @Readonly
         public String USER_AGENT = Http.getDefaultUserAgent();
         @Editor(JTimeDisplay.class)
         public long NEXT_UPDATE = System.currentTimeMillis();
@@ -74,20 +75,6 @@ public class UserAgentUpdater implements Task, Configurable<UserAgentUpdater.Con
             userAgent.setValue("BigpointClient/" + version);
             Http.setDefaultUserAgent(userAgent.getValue());
             nextUpdate.setValue(System.currentTimeMillis() + (6 * HOUR));
-        }
-    }
-
-    public static class JLabelEditor extends TableOptimizedJLabel implements OptionEditor<String> {
-
-        @Override
-        public JComponent getEditorComponent(ConfigSetting<String> setting) {
-            setText(setting.getValue());
-            return this;
-        }
-
-        @Override
-        public String getEditorValue() {
-            return getText();
         }
     }
 

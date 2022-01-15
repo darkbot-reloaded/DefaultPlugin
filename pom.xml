@@ -25,13 +25,17 @@
     <dependencies>
         <dependency>
             <groupId>eu.darkbot</groupId>
-            <artifactId>DarkBot</artifactId>
-            <version>master-SNAPSHOT</version>
+            <artifactId>darkbot-common</artifactId>
+            <version>0.2</version>
         </dependency>
+
+
+        <!-- Do NOT import DarkBot directly unless you requires features not available in api -->
+        <!-- DefaultPlugin needs to do this because of flash patcher for now, but you shouldn't. -->
         <dependency>
             <groupId>eu.darkbot</groupId>
-            <artifactId>darkbot-common</artifactId>
-            <version>0.1</version>
+            <artifactId>DarkBot</artifactId>
+            <version>master-SNAPSHOT</version>
         </dependency>
     </dependencies>
 

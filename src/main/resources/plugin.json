@@ -1,7 +1,7 @@
 {
 	"name": "Default plugin",
 	"author": "Popcorn",
-	"version": "2.0.0 beta 1",
+	"version": "2.0.0 beta 2",
 	"minVersion": "1.13.17 beta 101",
 	"supportedVersion": "1.13.17 beta 101",
 	"basePackage": "eu.darkbot.popcorn.def",

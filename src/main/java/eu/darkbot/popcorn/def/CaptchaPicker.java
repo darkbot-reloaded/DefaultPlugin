@@ -5,6 +5,8 @@ import eu.darkbot.api.events.Listener;
 import eu.darkbot.api.extensions.Behavior;
 import eu.darkbot.api.extensions.Feature;
 import eu.darkbot.api.game.entities.Box;
+import eu.darkbot.api.game.other.Locatable;
+import eu.darkbot.api.game.other.Location;
 import eu.darkbot.api.managers.AuthAPI;
 import eu.darkbot.api.managers.BotAPI;
 import eu.darkbot.api.managers.EntitiesAPI;
@@ -68,7 +70,7 @@ public class CaptchaPicker extends TemporalModule implements Behavior, Listener 
     }
 
     @EventHandler
-    private void onLogReceived(LogMessageEvent ev) {
+    public void onLogReceived(LogMessageEvent ev) {
         // Previous to flash resource manager initialization, translations may be null, if so, store messages.
         if (!gameResources.findTranslation(Captcha.SOME_RED.key).isPresent()) {
             pastLogMessages.add(ev);
@@ -120,11 +122,20 @@ public class CaptchaPicker extends TemporalModule implements Behavior, Listener 
         }
 
         if (toCollect == null) {
-            if (captchaType == null) return;
+            if (captchaType == null || boxes.isEmpty()) return;
 
-            Stream<? extends Box> boxStream = boxes.stream()
-                    .filter(captchaType::matches)
-                    .sorted(Comparator.comparingDouble(hero::distanceTo));
+            List<? extends Box> filteredBoxes = boxes.stream().filter(captchaType::matches)
+                    .collect(Collectors.toList());
+
+            Location center = getCenter(filteredBoxes);
+            double closestAngle = filteredBoxes.stream().min(Comparator.comparingDouble(hero::distanceTo))
+                    .map(b -> angle(b, center)).orElse(0d);
+
+            Stream<? extends Box> boxStream = filteredBoxes.stream()
+                    .sorted(Comparator.comparingDouble(b -> {
+                        double angle = this.angle(b, center);
+                        return angle >= closestAngle ? angle : 10 - angle;
+                    }));
             if (captchaType.hasAmount) boxStream = boxStream.limit(captchaType.amount);
 
             toCollect = boxStream.collect(Collectors.toList());
@@ -132,6 +143,15 @@ public class CaptchaPicker extends TemporalModule implements Behavior, Listener 
 
         toCollect.stream().filter(b -> !b.isCollected())
                 .findFirst().ifPresent(this::collectBox);
+    }
+
+    private Location getCenter(List<? extends Locatable> locations) {
+        Location center = locations.stream().reduce(Location.of(0, 0), Location::plus, Location::plus);
+        return center.setTo(center.getX() / locations.size(), center.getY() / locations.size());
+    }
+
+    private double angle(Locatable loc, Location center) {
+        return Math.atan2(loc.getX() - center.getX(), loc.getY() - center.getY());
     }
 
     @Override

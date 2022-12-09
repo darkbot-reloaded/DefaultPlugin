@@ -1,7 +1,7 @@
 {
 	"name": "Default plugin",
 	"author": "Popcorn",
-	"version": "2.0.0 beta 3",
+	"version": "2.0.0",
 	"minVersion": "1.13.17 beta 110",
 	"supportedVersion": "1.13.17 beta 110",
 	"basePackage": "eu.darkbot.popcorn.def",
@@ -13,6 +13,6 @@
 		"eu.darkbot.popcorn.def.UserAgentUpdater",
 		"eu.darkbot.popcorn.def.SampleModule"
 	],
-	"download": "https://github.com/darkbot-reloaded/DefaultPlugin/releases/download/v1.7.4/DefaultPlugin.jar",
+	"download": "https://github.com/darkbot-reloaded/DefaultPlugin/releases/download/v2.0.0/DefaultPlugin.jar",
 	"update": "https://raw.githubusercontent.com/darkbot-reloaded/DefaultPlugin/master/src/main/resources/plugin.json"
 }

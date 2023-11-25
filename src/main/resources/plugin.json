@@ -2,14 +2,13 @@
 	"name": "Default plugin",
 	"author": "Popcorn",
 	"version": "2.0.0",
-	"minVersion": "1.13.17 beta 110",
-	"supportedVersion": "1.13.17 beta 110",
+	"minVersion": "1.128.3",
+	"supportedVersion": "1.128.3",
 	"basePackage": "eu.darkbot.popcorn.def",
 	"features": [
 		"eu.darkbot.popcorn.def.CaptchaPicker",
 		"eu.darkbot.popcorn.def.PalladiumModule",
 		"eu.darkbot.popcorn.def.AntiPush",
-		"eu.darkbot.popcorn.def.FlashPatcher",
 		"eu.darkbot.popcorn.def.UserAgentUpdater",
 		"eu.darkbot.popcorn.def.SampleModule"
 	],

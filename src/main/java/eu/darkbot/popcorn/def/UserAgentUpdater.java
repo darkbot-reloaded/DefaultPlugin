@@ -15,6 +15,7 @@ import eu.darkbot.util.http.Http;
 import javax.swing.*;
 import java.awt.*;
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -63,18 +64,23 @@ public class UserAgentUpdater implements Task, Configurable<UserAgentUpdater.Con
     public void onTickTask() {
         if (System.currentTimeMillis() <= nextUpdate.getValue()) return;
 
-        String version = Http.create(URL).consumeInputStream(in ->
-                new BufferedReader(new InputStreamReader(in)).lines()
-                        .map(VERSION::matcher)
-                        .filter(Matcher::find)
-                        .map(matcher -> matcher.group(1))
-                        .findFirst().orElse(null));
+        try {
+            String version = Http.create(URL).consumeInputStream(in ->
+                    new BufferedReader(new InputStreamReader(in)).lines()
+                            .map(VERSION::matcher)
+                            .filter(Matcher::find)
+                            .map(matcher -> matcher.group(1))
+                            .findFirst().orElse(null));
 
-        if (version == null) nextUpdate.setValue(System.currentTimeMillis() + HOUR);
-        else {
-            userAgent.setValue("BigpointClient/" + version);
-            Http.setDefaultUserAgent(userAgent.getValue());
-            nextUpdate.setValue(System.currentTimeMillis() + (6 * HOUR));
+            if (version == null) nextUpdate.setValue(System.currentTimeMillis() + HOUR);
+            else {
+                userAgent.setValue("BigpointClient/" + version);
+                Http.setDefaultUserAgent(userAgent.getValue());
+                nextUpdate.setValue(System.currentTimeMillis() + (6 * HOUR));
+            }
+        } catch (IOException e) {
+            e.printStackTrace(); // Log the exception for debugging purposes
+            nextUpdate.setValue(System.currentTimeMillis() + HOUR);
         }
     }
 

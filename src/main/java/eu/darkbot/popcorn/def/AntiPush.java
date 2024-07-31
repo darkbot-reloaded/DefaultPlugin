@@ -33,19 +33,22 @@ public class AntiPush implements Behavior, Configurable<AntiPush.Config> {
     private final RepairAPI repairManager;
     private final I18nAPI i18n;
     private final LegacyModuleAPI legacyModules;
-
     private final Collection<? extends Ship> ships;
     private Config config;
 
-    // key: user id, value: List of times of death, List::size() is death count
     private final Map<Integer, List<Instant>> deathStats = new HashMap<>();
     private boolean wasDead = true;
 
     @Configuration("anti_push.config")
     public static class Config {
-        public @Number(min = -1, max = 300) int DRAWFIRE_PAUSE_TIME = -1;
-        public @Number(min = 1, max = 1000, step = 1) int MAX_DEATHS = 7;
-        public @Number(min = -1, max = 300) int DEATH_PAUSE_TIME = -1;
+        @Number(min = -1, max = 300)
+        public int DRAWFIRE_PAUSE_TIME = -1;
+
+        @Number(min = 1, max = 1000, step = 1)
+        public int MAX_DEATHS = 7;
+
+        @Number(min = -1, max = 300)
+        public int DEATH_PAUSE_TIME = -1;
     }
 
     public AntiPush(HeroAPI hero,
@@ -55,16 +58,19 @@ public class AntiPush implements Behavior, Configurable<AntiPush.Config> {
                     LegacyModuleAPI legacyModules,
                     EntitiesAPI entities,
                     AuthAPI auth) {
-        if (!Arrays.equals(VerifierChecker.class.getSigners(), getClass().getSigners())) throw new SecurityException();
-        VerifierChecker.checkAuthenticity(auth);
-
+        authenticate(auth);
         this.hero = hero;
         this.bot = bot;
         this.repairManager = repairManager;
         this.i18n = i18n;
         this.legacyModules = legacyModules;
-
         this.ships = entities.getShips();
+    }
+
+    private void authenticate(AuthAPI auth) {
+        if (!Arrays.equals(VerifierChecker.class.getSigners(), getClass().getSigners()))
+            throw new SecurityException();
+        VerifierChecker.checkAuthenticity(auth);
     }
 
     @Override
@@ -74,46 +80,43 @@ public class AntiPush implements Behavior, Configurable<AntiPush.Config> {
 
     @Override
     public void onTickBehavior() {
-        tickDrawFire();
-        tickDeathPause();
+        handleDrawFire();
+        handleDeathPause();
     }
 
-    // updating deathStats on tickStopped() because behaviour not ticked when ship isDead()
     @Override
     public void onStoppedBehavior() {
         if (config.DEATH_PAUSE_TIME == 0) return;
 
-        removeOldDeaths();
+        cleanOldDeaths();
         if (repairManager.isDestroyed() && !wasDead) {
-            ships.stream()
-                    .filter(s -> s.getEntityInfo().getUsername().equals(repairManager.getLastDestroyerName()))
-                    .findFirst()
-                    .ifPresent(killer -> deathStats.computeIfAbsent(
-                            killer.getId(), l -> new ArrayList<>()).add(Instant.now()));
+            updateDeathStats();
             wasDead = true;
         }
     }
 
-    private void tickDrawFire() {
+    private void handleDrawFire() {
         if (config.DRAWFIRE_PAUSE_TIME == 0) return;
 
-        for (Ship ship : ships) {
-            if (!ship.getEntityInfo().isEnemy() || !ship.hasEffect(EntityEffect.DRAW_FIRE) || hero.getTarget() != ship) continue;
-            System.out.println("Pausing bot" +
-                    (config.DRAWFIRE_PAUSE_TIME > 0 ? " for " + config.DRAWFIRE_PAUSE_TIME + " minutes" : "") +
-                    ", enemy used draw fire");
+        ships.stream()
+                .filter(ship -> ship.getEntityInfo().isEnemy() && ship.hasEffect(EntityEffect.DRAW_FIRE) && hero.getTarget() == ship)
+                .findFirst()
+                .ifPresent(ship -> {
+                    System.out.println("Pausing bot" +
+                            (config.DRAWFIRE_PAUSE_TIME > 0 ? " for " + config.DRAWFIRE_PAUSE_TIME + " minutes" : "") +
+                            ", enemy used draw fire");
 
-            Long pauseMillis = config.DRAWFIRE_PAUSE_TIME > 0 ? (long) config.DRAWFIRE_PAUSE_TIME * 60 * 1000 : null;
-            bot.setModule(legacyModules.getDisconnectModule(pauseMillis, i18n.get("module.disconnect.reason.draw_fire")));
-        }
+                    Long pauseMillis = config.DRAWFIRE_PAUSE_TIME > 0 ? config.DRAWFIRE_PAUSE_TIME * 60 * 1000L : null;
+                    bot.setModule(legacyModules.getDisconnectModule(pauseMillis, i18n.get("module.disconnect.reason.draw_fire")));
+                });
     }
 
-    private void tickDeathPause() {
+    private void handleDeathPause() {
         if (config.DEATH_PAUSE_TIME == 0) return;
         wasDead = false;
 
         deathStats.entrySet().stream()
-                .filter(e -> e.getValue().size() >= config.MAX_DEATHS)
+                .filter(entry -> entry.getValue().size() >= config.MAX_DEATHS)
                 .findFirst()
                 .ifPresent(entry -> {
                     String killer = repairManager.getLastDestroyerName();
@@ -127,9 +130,15 @@ public class AntiPush implements Behavior, Configurable<AntiPush.Config> {
                 });
     }
 
-    private void removeOldDeaths() {
-        deathStats.values()
-                .forEach(time -> time.removeIf(t -> Duration.between(t, Instant.now()).toDays() >= 1));
+    private void cleanOldDeaths() {
+        deathStats.values().forEach(times -> times.removeIf(time -> Duration.between(time, Instant.now()).toDays() >= 1));
         deathStats.values().removeIf(List::isEmpty);
+    }
+
+    private void updateDeathStats() {
+        ships.stream()
+                .filter(ship -> ship.getEntityInfo().getUsername().equals(repairManager.getLastDestroyerName()))
+                .findFirst()
+                .ifPresent(killer -> deathStats.computeIfAbsent(killer.getId(), k -> new ArrayList<>()).add(Instant.now()));
     }
 }

@@ -18,9 +18,8 @@ import eu.darkbot.shared.modules.MapModule;
 import java.util.Arrays;
 import java.util.Collection;
 
-@Feature(name = "Palladium Module", description = "Loot & collect, but when full cargo is full travels to 5-2 to sell")
+@Feature(name = "Palladium Module", description = "Loot & collect, but when cargo is full, travels to 5-2 to sell")
 public class PalladiumModule extends LootCollectorModule implements InstructionProvider {
-
 
     private final PluginAPI api;
     private final BotAPI bot;
@@ -30,7 +29,7 @@ public class PalladiumModule extends LootCollectorModule implements InstructionP
     private final GameMap SELL_MAP;
     private final Collection<? extends Station> bases;
 
-    private long sellClick;
+    private long lastSellAttempt;
 
     public PalladiumModule(PluginAPI api,
                            BotAPI bot,
@@ -40,16 +39,19 @@ public class PalladiumModule extends LootCollectorModule implements InstructionP
                            StarSystemAPI starSystem,
                            AuthAPI auth) throws StarSystemAPI.MapNotFoundException {
         super(api);
-        if (!Arrays.equals(VerifierChecker.class.getSigners(), getClass().getSigners())) throw new SecurityException();
-        VerifierChecker.checkAuthenticity(auth);
-
+        authenticate(auth);
         this.api = api;
         this.bot = bot;
         this.stats = stats;
         this.ores = ores;
-
         this.SELL_MAP = starSystem.getByName("5-2");
         this.bases = entities.getStations();
+    }
+
+    private void authenticate(AuthAPI auth) {
+        if (!Arrays.equals(VerifierChecker.class.getSigners(), getClass().getSigners()))
+            throw new SecurityException();
+        VerifierChecker.checkAuthenticity(auth);
     }
 
     @Override
@@ -67,30 +69,63 @@ public class PalladiumModule extends LootCollectorModule implements InstructionP
 
     @Override
     public void onTickModule() {
-        if (stats.getCargo() >= stats.getMaxCargo() && stats.getMaxCargo() != 0) sell();
-        else if (System.currentTimeMillis() - 500 > sellClick && ores.showTrade(false, null)) super.onTickModule();
+        if (isCargoFull()) {
+            sell();
+        } else if (canCollectPalladium()) {
+            super.onTickModule();
+        }
+    }
+
+    private boolean isCargoFull() {
+        return stats.getCargo() >= stats.getMaxCargo() && stats.getMaxCargo() != 0;
+    }
+
+    private boolean canCollectPalladium() {
+        return System.currentTimeMillis() - 500 > lastSellAttempt && ores.showTrade(false, null);
     }
 
     private void sell() {
         pet.setEnabled(false);
         if (hero.getMap() != SELL_MAP) {
-            bot.setModule(api.requireInstance(MapModule.class)).setTarget(SELL_MAP);
+            travelToSellMap();
             return;
         }
-        Station.Refinery base = bases.stream()
-                .filter(b -> b instanceof Station.Refinery && b.getLocationInfo().isInitialized())
-                .map(Station.Refinery.class::cast)
-                .findFirst().orElse(null);
+        Station.Refinery base = findRefineryBase();
         if (base == null) return;
 
-        if (movement.getDestination().distanceTo(base) > 200) { // Move to base
-            double angle = base.angleTo(hero) + Math.random() * 0.2 - 0.1;
-            movement.moveTo(Location.of(base, angle, 100 + (100 * Math.random())));
-        } else if (!hero.isMoving() && ores.showTrade(true, base)
-                && System.currentTimeMillis() - 60_000 > sellClick) {
-            ores.sellOre(OreAPI.Ore.PALLADIUM);
-            sellClick = System.currentTimeMillis();
+        if (shouldMoveToBase(base)) {
+            moveToBase(base);
+        } else if (canSellOre(base)) {
+            sellOre();
         }
     }
 
+    private void travelToSellMap() {
+        bot.setModule(api.requireInstance(MapModule.class)).setTarget(SELL_MAP);
+    }
+
+    private Station.Refinery findRefineryBase() {
+        return bases.stream()
+                .filter(b -> b instanceof Station.Refinery && b.getLocationInfo().isInitialized())
+                .map(Station.Refinery.class::cast)
+                .findFirst().orElse(null);
+    }
+
+    private boolean shouldMoveToBase(Station.Refinery base) {
+        return movement.getDestination().distanceTo(base) > 200;
+    }
+
+    private void moveToBase(Station.Refinery base) {
+        double angle = base.angleTo(hero) + Math.random() * 0.2 - 0.1;
+        movement.moveTo(Location.of(base, angle, 100 + (100 * Math.random())));
+    }
+
+    private boolean canSellOre(Station.Refinery base) {
+        return !hero.isMoving() && ores.showTrade(true, base) && System.currentTimeMillis() - 60_000 > lastSellAttempt;
+    }
+
+    private void sellOre() {
+        ores.sellOre(OreAPI.Ore.PALLADIUM);
+        lastSellAttempt = System.currentTimeMillis();
+    }
 }

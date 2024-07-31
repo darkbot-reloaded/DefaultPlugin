@@ -46,7 +46,6 @@ public class SampleModule implements
             throw new SecurityException();
         VerifierChecker.verifyAuthApi(auth);
 
-
         // If the user isn't verified, setup auth.
         // This should be done regardless of if you enforce donors-only on your modules
         if (!auth.isAuthenticated()) auth.setupAuth();
@@ -54,7 +53,6 @@ public class SampleModule implements
         // Alternatively if you want to enforce donors-only on your features, use this instead
         // You should not do both, as requireDonor will take care of setting up auth
         //if (!auth.requireDonor()) return;
-
 
         this.movement = movement;
     }
@@ -91,7 +89,6 @@ public class SampleModule implements
         // moveRandom will already perform all logic of preferred zones
         if (config.MOVE_SHIP && !movement.isMoving()) movement.moveRandom();
     }
-
 
     // Configurable
 
@@ -145,7 +142,6 @@ public class SampleModule implements
         this.config = config.getValue();
     }
 
-
     // Extra npc flags
 
     /**
@@ -177,7 +173,7 @@ public class SampleModule implements
         return Arrays.asList(
                 // Use i18n with the plugin as context to find translations in our plugin resource file
                 createSeparator(i18n.get(plugin, "sample_module.menu.separator")),
-                create(i18n.get(plugin, "sample_module.menu.menu_entry"), e -> Popups.showMessageAsync(
+                create(i18n.get(plugin, "sample_module.menu.menu_entry"), e -> Popups.showMessage(
                         "Sample popup", // These could also come from translation file, but for simplicity they don't
                         "Just a pop-up created when pressing the sample module",
                         JOptionPane.INFORMATION_MESSAGE)));

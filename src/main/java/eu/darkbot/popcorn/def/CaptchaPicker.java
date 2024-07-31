@@ -7,22 +7,11 @@ import eu.darkbot.api.extensions.Feature;
 import eu.darkbot.api.game.entities.Box;
 import eu.darkbot.api.game.other.Locatable;
 import eu.darkbot.api.game.other.Location;
-import eu.darkbot.api.managers.AuthAPI;
-import eu.darkbot.api.managers.BotAPI;
-import eu.darkbot.api.managers.EntitiesAPI;
-import eu.darkbot.api.managers.GameResourcesAPI;
-import eu.darkbot.api.managers.HeroAPI;
+import eu.darkbot.api.managers.*;
 import eu.darkbot.api.managers.GameLogAPI.LogMessageEvent;
-import eu.darkbot.api.managers.MovementAPI;
-import eu.darkbot.api.managers.WindowAPI;
 import eu.darkbot.shared.modules.TemporalModule;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -32,7 +21,6 @@ import java.util.stream.Stream;
 public class CaptchaPicker extends TemporalModule implements Behavior, Listener {
 
     private static final Pattern SPECIAL_REGEX = Pattern.compile("[{}()\\[\\].+*?^$\\\\|]");
-
     private static final Set<String> ALL_CAPTCHA_TYPES =
             Arrays.stream(Captcha.values()).map(c -> c.box).collect(Collectors.toSet());
 
@@ -41,11 +29,9 @@ public class CaptchaPicker extends TemporalModule implements Behavior, Listener 
     private final MovementAPI movement;
     private final WindowAPI window;
     private final GameResourcesAPI gameResources;
-
     private final Collection<? extends Box> boxes;
 
     private final List<LogMessageEvent> pastLogMessages = new ArrayList<>();
-
     private Captcha captchaType;
     private List<Box> toCollect;
     private long waiting, maxActiveTime;
@@ -58,8 +44,7 @@ public class CaptchaPicker extends TemporalModule implements Behavior, Listener 
                          EntitiesAPI entities,
                          AuthAPI auth) {
         super(bot);
-        if (!Arrays.equals(VerifierChecker.class.getSigners(), getClass().getSigners())) throw new SecurityException();
-        VerifierChecker.checkAuthenticity(auth);
+        authenticate(auth);
 
         this.bot = bot;
         this.hero = hero;
@@ -69,17 +54,22 @@ public class CaptchaPicker extends TemporalModule implements Behavior, Listener 
         this.boxes = entities.getBoxes();
     }
 
+    private void authenticate(AuthAPI auth) {
+        if (!Arrays.equals(VerifierChecker.class.getSigners(), getClass().getSigners())) throw new SecurityException();
+        VerifierChecker.checkAuthenticity(auth);
+    }
+
     @EventHandler
     public void onLogReceived(LogMessageEvent ev) {
-        // Previous to flash resource manager initialization, translations may be null, if so, store messages.
         if (!gameResources.findTranslation(Captcha.SOME_RED.key).isPresent()) {
             pastLogMessages.add(ev);
             return;
         }
 
-        for (Captcha captcha : Captcha.values()) {
-            if (captcha.matches(ev.getMessage(), gameResources)) setCurrentCaptcha(captcha);
-        }
+        Arrays.stream(Captcha.values())
+                .filter(captcha -> captcha.matches(ev.getMessage(), gameResources))
+                .findFirst()
+                .ifPresent(this::setCurrentCaptcha);
     }
 
     @Override
@@ -95,13 +85,11 @@ public class CaptchaPicker extends TemporalModule implements Behavior, Listener 
 
     @Override
     public void onTickBehavior() {
-        // Translations finally loaded, process past message
         if (!pastLogMessages.isEmpty() && gameResources.findTranslation(Captcha.SOME_RED.key).isPresent()) {
             pastLogMessages.forEach(this::onLogReceived);
             pastLogMessages.clear();
         }
 
-        // Set module to work if there's any
         if (bot.getModule() != this && hasAnyCaptchaBox()) {
             maxActiveTime = System.currentTimeMillis() + 30_000; // 30sec max to solve
             bot.setModule(this);
@@ -110,8 +98,10 @@ public class CaptchaPicker extends TemporalModule implements Behavior, Listener 
 
     @Override
     public void onTickModule() {
-        if (isWaiting()) return;
-        if (!hasAnyCaptchaBox()) goBack();
+        if (isWaiting() || !hasAnyCaptchaBox()) {
+            goBack();
+            return;
+        }
 
         movement.stop(false);
 
@@ -121,28 +111,35 @@ public class CaptchaPicker extends TemporalModule implements Behavior, Listener 
             window.handleRefresh();
         }
 
-        if (toCollect == null) {
-            if (captchaType == null || boxes.isEmpty()) return;
-
-            List<? extends Box> filteredBoxes = boxes.stream().filter(captchaType::matches)
-                    .collect(Collectors.toList());
-
-            Location center = getCenter(filteredBoxes);
-            double closestAngle = filteredBoxes.stream().min(Comparator.comparingDouble(hero::distanceTo))
-                    .map(b -> angle(b, center)).orElse(0d);
-
-            Stream<? extends Box> boxStream = filteredBoxes.stream()
-                    .sorted(Comparator.comparingDouble(b -> {
-                        double angle = this.angle(b, center);
-                        return angle >= closestAngle ? angle : 10 - angle;
-                    }));
-            if (captchaType.hasAmount) boxStream = boxStream.limit(captchaType.amount);
-
-            toCollect = boxStream.collect(Collectors.toList());
+        if (toCollect == null && captchaType != null && !boxes.isEmpty()) {
+            prepareBoxesToCollect();
         }
 
         toCollect.stream().filter(b -> !b.isCollected())
-                .findFirst().ifPresent(this::collectBox);
+                .findFirst()
+                .ifPresent(this::collectBox);
+    }
+
+    private void prepareBoxesToCollect() {
+        List<? extends Box> filteredBoxes = boxes.stream().filter(captchaType::matches)
+                .collect(Collectors.toList());
+
+        Location center = getCenter(filteredBoxes);
+        double closestAngle = filteredBoxes.stream()
+                .min(Comparator.comparingDouble(hero::distanceTo))
+                .map(b -> angle(b, center)).orElse(0d);
+
+        Stream<? extends Box> boxStream = filteredBoxes.stream()
+                .sorted(Comparator.comparingDouble(b -> {
+                    double angle = this.angle(b, center);
+                    return angle >= closestAngle ? angle : 10 - angle;
+                }));
+
+        if (captchaType.hasAmount) {
+            boxStream = boxStream.limit(captchaType.amount);
+        }
+
+        toCollect = boxStream.collect(Collectors.toList());
     }
 
     private Location getCenter(List<? extends Locatable> locations) {
@@ -156,7 +153,6 @@ public class CaptchaPicker extends TemporalModule implements Behavior, Listener 
 
     @Override
     public void onTickStopped() {
-        // While paused or invalid, add 30s to solve
         maxActiveTime = System.currentTimeMillis() + 30_000;
     }
 
@@ -172,7 +168,7 @@ public class CaptchaPicker extends TemporalModule implements Behavior, Listener 
                 + hero.timeTo(box) + 500;
     }
 
-    public boolean isWaiting() {
+    private boolean isWaiting() {
         return System.currentTimeMillis() < waiting;
     }
 
@@ -185,7 +181,6 @@ public class CaptchaPicker extends TemporalModule implements Behavior, Listener 
     @Override
     public void goBack() {
         this.toCollect = null; // Make sure we let them GC
-
         super.goBack();
     }
 
@@ -212,7 +207,6 @@ public class CaptchaPicker extends TemporalModule implements Behavior, Listener 
                 if (translation == null || translation.isEmpty()) return false;
 
                 this.hasAmount = translation.contains("%AMOUNT%");
-
                 pattern = Pattern.compile(escapeRegex(translation)
                         .replace("%AMOUNT%", "(?<amount>[0-9]+)")
                         .replace("%TIME%", "(?<time>[0-9]+)"));
@@ -233,7 +227,7 @@ public class CaptchaPicker extends TemporalModule implements Behavior, Listener 
 
         @Override
         public String toString() {
-            return name() + (hasAmount ?  " " + amount : "");
+            return name() + (hasAmount ? " " + amount : "");
         }
     }
 

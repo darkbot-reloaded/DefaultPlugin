@@ -177,9 +177,11 @@ public class SampleModule implements
         return Arrays.asList(
                 // Use i18n with the plugin as context to find translations in our plugin resource file
                 createSeparator(i18n.get(plugin, "sample_module.menu.separator")),
-                create(i18n.get(plugin, "sample_module.menu.menu_entry"), e -> Popups.showMessageAsync(
-                        "Sample popup", // These could also come from translation file, but for simplicity they don't
-                        "Just a pop-up created when pressing the sample module",
-                        JOptionPane.INFORMATION_MESSAGE)));
+                create(i18n.get(plugin, "sample_module.menu.menu_entry"), e ->
+                        Popups.of(
+                            i18n.get(plugin, "sample_module.popup.title"),
+                            i18n.get(plugin, "sample_module.popup.content"),
+                            JOptionPane.INFORMATION_MESSAGE
+                        ).showAsync()));
     }
 }

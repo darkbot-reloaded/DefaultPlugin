@@ -38,7 +38,7 @@ public class PalladiumModule extends LootCollectorModule implements InstructionP
                            OreAPI ores,
                            EntitiesAPI entities,
                            StarSystemAPI starSystem,
-                           AuthAPI auth) throws StarSystemAPI.MapNotFoundException {
+                           AuthAPI auth){
         super(api);
         if (!Arrays.equals(VerifierChecker.class.getSigners(), getClass().getSigners())) throw new SecurityException();
         VerifierChecker.checkAuthenticity(auth);
@@ -48,7 +48,7 @@ public class PalladiumModule extends LootCollectorModule implements InstructionP
         this.stats = stats;
         this.ores = ores;
 
-        this.SELL_MAP = starSystem.getByName("5-2");
+        this.SELL_MAP = starSystem.getOrCreateMap("5-2");
         this.bases = entities.getStations();
     }
 

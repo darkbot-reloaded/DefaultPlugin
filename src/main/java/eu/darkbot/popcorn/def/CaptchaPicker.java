@@ -46,9 +46,12 @@ public class CaptchaPicker extends TemporalModule implements Behavior, Listener 
 
     private final List<LogMessageEvent> pastLogMessages = new ArrayList<>();
 
+    private static final long LOG_WAIT_TIME = 10_000; // Time to wait for the captcha log message
+
     private Captcha captchaType;
     private List<Box> toCollect;
-    private long waiting, maxActiveTime;
+    private long waiting, maxActiveTime, captchaSince;
+    private boolean pausedForMissingLog;
 
     public CaptchaPicker(BotAPI bot,
                          HeroAPI hero,
@@ -89,8 +92,14 @@ public class CaptchaPicker extends TemporalModule implements Behavior, Listener 
 
     @Override
     public String getStatus() {
-        return "Solving captcha: Collecting " + (captchaType == null ? "(waiting for log...)" :
-                (captchaType.hasAmount ? captchaType.amount : "all") + " " + captchaType.box + " box(es)");
+        if (captchaType == null) {
+            return pausedForMissingLog
+                    ? "Captcha detected, but no captcha message was received from the game log. " +
+                    "Bot paused, solve the captcha manually."
+                    : "Solving captcha: waiting for log...";
+        }
+        return "Solving captcha: Collecting " + (captchaType.hasAmount ? captchaType.amount : "all") +
+                " " + captchaType.box + " box(es)";
     }
 
     @Override
@@ -104,16 +113,41 @@ public class CaptchaPicker extends TemporalModule implements Behavior, Listener 
         // Set module to work if there's any
         if (bot.getModule() != this && hasAnyCaptchaBox()) {
             maxActiveTime = System.currentTimeMillis() + 30_000; // 30sec max to solve
+            captchaSince = System.currentTimeMillis();
+            pausedForMissingLog = false;
             bot.setModule(this);
+        } else if (!hasAnyCaptchaBox()) {
+            captchaSince = 0;
+            pausedForMissingLog = false;
         }
     }
 
     @Override
     public void onTickModule() {
         if (isWaiting()) return;
-        if (!hasAnyCaptchaBox()) goBack();
+        if (!hasAnyCaptchaBox()) {
+            captchaSince = 0;
+            pausedForMissingLog = false;
+            goBack();
+            return;
+        }
 
         movement.stop(false);
+
+        if (captchaType == null) {
+            // If the log never delivered the captcha message, refreshing in a loop will not help.
+            // Pause the bot and let the user solve the captcha manually instead.
+            if (captchaSince == 0) captchaSince = System.currentTimeMillis();
+            if (System.currentTimeMillis() - captchaSince > LOG_WAIT_TIME) {
+                if (!pausedForMissingLog) {
+                    pausedForMissingLog = true;
+                    System.out.println("Captcha detected, but no captcha message was received from the game log. " +
+                            "Pausing bot, solve the captcha manually.");
+                }
+                bot.setRunning(false);
+            }
+            return;
+        }
 
         if (System.currentTimeMillis() > maxActiveTime) {
             System.out.println("Triggering refresh: Timed out trying to solve captcha");
@@ -122,7 +156,7 @@ public class CaptchaPicker extends TemporalModule implements Behavior, Listener 
         }
 
         if (toCollect == null) {
-            if (captchaType == null || boxes.isEmpty()) return;
+            if (boxes.isEmpty()) return;
 
             List<? extends Box> filteredBoxes = boxes.stream().filter(captchaType::matches)
                     .collect(Collectors.toList());

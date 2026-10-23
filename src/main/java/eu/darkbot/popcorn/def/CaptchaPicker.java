@@ -47,6 +47,7 @@ public class CaptchaPicker extends TemporalModule implements Behavior, Listener 
     private final List<LogMessageEvent> pastLogMessages = new ArrayList<>();
 
     private Captcha captchaType;
+    private boolean haltShip;
     private List<Box> toCollect;
     private long waiting, maxActiveTime;
 
@@ -103,6 +104,7 @@ public class CaptchaPicker extends TemporalModule implements Behavior, Listener 
 
         // Set module to work if there's any
         if (bot.getModule() != this && hasAnyCaptchaBox()) {
+            haltShip = true;
             maxActiveTime = System.currentTimeMillis() + 30_000; // 30sec max to solve
             bot.setModule(this);
         }
@@ -110,6 +112,11 @@ public class CaptchaPicker extends TemporalModule implements Behavior, Listener 
 
     @Override
     public void onTickModule() {
+        // Cancel an order the game is still executing (e.g. a box the previous module clicked), stop(false) doesn't
+        if (haltShip && hero.getLocationInfo().isMoving()) {
+            haltShip = false;
+            movement.stop(true);
+        }
         if (isWaiting()) return;
         if (!hasAnyCaptchaBox()) goBack();
 
@@ -165,6 +172,7 @@ public class CaptchaPicker extends TemporalModule implements Behavior, Listener 
     }
 
     private void collectBox(Box box) {
+        haltShip = false; // Our own order replaces any pending one
         box.tryCollect();
 
         waiting = System.currentTimeMillis()
@@ -180,6 +188,7 @@ public class CaptchaPicker extends TemporalModule implements Behavior, Listener 
         waiting = System.currentTimeMillis() + 500; // Wait for everything to be ready
         captchaType = captcha;
         toCollect = null;
+        haltShip = true;
     }
 
     @Override
